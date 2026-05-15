@@ -938,7 +938,7 @@ if currentMapID == _A then
                 end
             end
         end
-    endnd
+    end
 
     local GetGunToggle = Tabs.Combat:AddToggle("MM2_GetGun", {
         Title = "🔫 Get Gun — Auto",
@@ -1998,10 +1998,8 @@ if currentMapID == _A then
         -- أشعل إشعار بالتأكيد + زر إعادة التشغيل
         Notify("🌐",
             Lang=="AR"
-            and "✅ تم حفظ اللغة
-أعد تشغيل السكربت لتطبيقها على التبويبات"
-            or  "✅ Language saved
-Re-run script to apply to tabs"
+            and "✅ تم حفظ اللغة\nأعد تشغيل السكربت لتطبيقها على التبويبات"
+            or  "✅ Language saved\nRe-run script to apply to tabs"
         )
     end)
     -- زر إعادة تشغيل السكربت (يطبق اللغة)
@@ -2244,7 +2242,8 @@ elseif currentMapID == _B then
     local function StartSmartFarm()
         SmartFarmActive=true Notify("🤖 Smart Farm","جاري البحث الذكي عن الفلوس...")
         spawn(function()
-            while SmartFarmActive do task.wait(0.5) if not Character or not HRP then continue end
+            while SmartFarmActive do task.wait(0.5)
+                if Character and HRP then
                 local bestTarget=nil local bestScore=0
                 for _,obj in pairs(workspace:GetDescendants()) do
                     if not SmartFarmActive then break end
@@ -2263,6 +2262,7 @@ elseif currentMapID == _B then
                     local tween=TweenService:Create(HRP,ti,{CFrame=bestTarget.CFrame+Vector3.new(0,2,0)}) tween:Play() tween.Completed:Wait()
                     firetouchinterest(HRP,bestTarget,0) task.wait(0.1) firetouchinterest(HRP,bestTarget,1)
                 end
+                end -- close if Character and HRP
             end
         end)
     end
@@ -2297,11 +2297,13 @@ elseif currentMapID == _B then
         local cp=nil local sd=AimbotFOV local mouse=Player:GetMouse() local cam=workspace.CurrentCamera
         for _,p in pairs(game.Players:GetPlayers()) do
             if p~=Player and p.Character and p.Character:FindFirstChild(AimbotPart) then
-                if AimbotTeamCheck and p.Team==Player.Team then continue end
-                local pp=p.Character[AimbotPart] local sp,os=cam:WorldToViewportPoint(pp.Position)
-                if os then local d=(Vector2.new(sp.X,sp.Y)-Vector2.new(mouse.X,mouse.Y)).Magnitude if d<sd then sd=d cp=p end end
+                if not (AimbotTeamCheck and p.Team==Player.Team) then
+                    local pp=p.Character[AimbotPart] local sp,os=cam:WorldToViewportPoint(pp.Position)
+                    if os then local d=(Vector2.new(sp.X,sp.Y)-Vector2.new(mouse.X,mouse.Y)).Magnitude if d<sd then sd=d cp=p end end
+                end
             end
-        end return cp
+        end
+        return cp
     end
 
     local function ToggleAimbot()
@@ -2560,12 +2562,14 @@ elseif currentMapID == _B then
         _G.AutoCollect=Options.KW_AutoCollect.Value
         if _G.AutoCollect then
             spawn(function()
-                while _G.AutoCollect do task.wait(0.1) if not HRP then continue end
+                while _G.AutoCollect do task.wait(0.1)
+                if HRP then
                     for _,obj in pairs(workspace:GetDescendants()) do if not _G.AutoCollect then break end
                         if obj:IsA("BasePart") then local d=(HRP.Position-obj.Position).Magnitude if d<=20 then
                             local mn={"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward"}
                             for _,n in pairs(mn) do if obj.Name:lower():find(n:lower()) then
                                 obj.CFrame=HRP.CFrame firetouchinterest(HRP,obj,0) firetouchinterest(HRP,obj,1) break end end end end end
+                end
                 end
             end)
         end
@@ -2960,4 +2964,4 @@ end
 -- ══════════════════════════════════════════════
 -- Select First Tab
 -- ══════════════════════════════════════════════
-Window:SelectTab(1)
+pcall(function() if Window then Window:SelectTab(1) end end)
