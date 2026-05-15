@@ -75,11 +75,12 @@ local function _digs(t)
 end
 local _PA = _digs({1,4,2,8,2,3,2,9,1})       -- MM2: 142823291
 local _PB = _digs({9,6,7,9,6,2,5,9,5,8,0,8,9,1}) -- KW: 96796259580891
+local _PC = _digs({1,1,3,7,9,7,3,9,5,4,3})       -- TimeBomb Duels: 11379739543
 local _pid = game.PlaceId
 
 -- PlaceId check
-if _pid ~= _PA and _pid ~= _PB then
-    warn("[Bo.Sqr] This script only works in MM2 or Kingdom World!")
+if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC then
+    warn("[Bo.Sqr] This script only works in MM2, Kingdom World or TimeBomb Duels!")
     warn("[Bo.Sqr] Current PlaceId: " .. tostring(_pid))
     return
 end
@@ -87,6 +88,43 @@ end
 -- Aliases for game logic
 local _A = _PA
 local _B = _PB
+local _C = _PC
+
+-- ── Mobile movement cleanup (يحل مشكلة عدم التحرك على Android) ──
+-- ينظف أي BodyVelocity/BodyGyro/Anchored من سكربت سابق
+do
+    local plr = game:GetService("Players").LocalPlayer
+    local function cleanChar(char)
+        if not char then return end
+        pcall(function()
+            for _, p in pairs(char:GetDescendants()) do
+                if p:IsA("BodyVelocity") or p:IsA("BodyGyro")
+                   or p:IsA("BodyMover") or p:IsA("BodyForce")
+                   or p:IsA("BodyPosition") or p:IsA("BodyAngularVelocity") then
+                    if p.Name:find("Fling") or p.Name:find("Fly")
+                       or p.Name:find("BoSqr") or p.Name:find("Boost")
+                       or p.Name:find("Wheelie") then
+                        p:Destroy()
+                    end
+                end
+                if p:IsA("BasePart") then
+                    p.Anchored = false
+                    p.CanCollide = true
+                end
+            end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                hum.AutoRotate = true
+                hum.PlatformStand = false
+                hum.Sit = false
+            end
+        end)
+    end
+    cleanChar(plr.Character)
+    plr.CharacterAdded:Connect(cleanChar)
+end
 
 -- ══════════════════════════════════════════════
 -- Load Fluent UI
@@ -337,7 +375,11 @@ local currentMapID   = game.PlaceId
 -- ══════════════════════════════════════════════
 -- Window
 -- ══════════════════════════════════════════════
-local gameName = currentMapID == _A and "Murder Mystery 2 🔪" or "Kingdom World 🇸🇦"
+local gameName = "Unknown"
+if currentMapID == _A then gameName = "Murder Mystery 2 🔪"
+elseif currentMapID == _B then gameName = "Kingdom World 🇸🇦"
+elseif currentMapID == _C then gameName = "TimeBomb Duels 💣"
+end
 
 -- حجم الـ window حسب الجهاز
 local _isMobile = game:GetService("UserInputService").TouchEnabled
@@ -2955,9 +2997,606 @@ elseif currentMapID == _B then
     Notify("🎉 Bo.Sqr | " .. (Lang=="AR" and "عالم المملكة" or "Kingdom World"), L("welcome_kw"), 10)
     print("✅ Bo.Sqr | Kingdom World ULTIMATE - تم التحميل | Discord: Riveteam")
 
+-- ══════════════════════════════════════════════════════════════════
+-- TIMEBOMB DUELS 💣
+-- ══════════════════════════════════════════════════════════════════
+elseif currentMapID == _C then
+
+    local Player    = LocalPlayer
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid  = Character:WaitForChild("Humanoid")
+    local HRP       = Character:WaitForChild("HumanoidRootPart")
+
+    Player.CharacterAdded:Connect(function(c)
+        Character = c
+        Humanoid = c:WaitForChild("Humanoid")
+        HRP = c:WaitForChild("HumanoidRootPart")
+    end)
+
+    -- ── State ───────────────────────────────────────
+    local TBT_TargetName = ""
+    local TBT_ESPActive = false
+    local TBT_AutoTransferActive = false
+    local TBT_AntiBombActive = false
+    local TBT_FollowActive = false
+    local TBT_AutoBombActive = false
+
+    -- ── Helper: find player by partial name ────────
+    local function TBT_FindPlayer(name)
+        if not name or name == "" then return nil end
+        name = name:lower()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= Player then
+                if p.Name:lower():find(name, 1, true)
+                   or p.DisplayName:lower():find(name, 1, true) then
+                    return p
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ── Helper: check if has bomb ──────────────────
+    local function TBT_HasBomb(char)
+        if not char then return nil end
+        for _, t in pairs(char:GetChildren()) do
+            if t:IsA("Tool") then
+                local n = t.Name:lower()
+                if n:find("bomb") or n:find("tnt") or n:find("explosive") then
+                    return t
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ── ESP function ──────────────────────────────
+    local function TBT_CreateESP(plr)
+        if plr == Player or not plr.Character then return end
+        if plr.Character:FindFirstChild("BoSqr_TBT_ESP") then return end
+        local h = Instance.new("Highlight")
+        h.Name = "BoSqr_TBT_ESP"
+        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        h.FillTransparency = 0.6
+        h.OutlineTransparency = 0
+        -- لون مختلف لو معه قنبلة
+        if TBT_HasBomb(plr.Character) then
+            h.FillColor = Color3.fromRGB(255, 50, 50)
+            h.OutlineColor = Color3.fromRGB(255, 200, 0)
+        else
+            h.FillColor = Color3.fromRGB(80, 255, 120)
+            h.OutlineColor = Color3.fromRGB(255, 255, 255)
+        end
+        h.Parent = plr.Character
+        -- BillboardGui للاسم
+        local head = plr.Character:FindFirstChild("Head")
+        if head then
+            local bb = Instance.new("BillboardGui")
+            bb.Name = "BoSqr_TBT_BB"
+            bb.Adornee = head
+            bb.Size = UDim2.new(0, 200, 0, 40)
+            bb.StudsOffset = Vector3.new(0, 3, 0)
+            bb.AlwaysOnTop = true
+            local lbl = Instance.new("TextLabel")
+            lbl.Parent = bb
+            lbl.BackgroundTransparency = 1
+            lbl.Size = UDim2.new(1, 0, 1, 0)
+            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 13
+            lbl.TextStrokeTransparency = 0.5
+            bb.Parent = head
+            -- update loop
+            task.spawn(function()
+                while TBT_ESPActive and head.Parent do
+                    local hasBomb = TBT_HasBomb(plr.Character)
+                    local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+                    local hp = hum and math.floor(hum.Health) or 0
+                    local dist = HRP and math.floor((HRP.Position - head.Position).Magnitude) or 0
+                    lbl.Text = plr.Name
+                               .. (hasBomb and " 💣" or "")
+                               .. " | ❤️" .. hp
+                               .. " | " .. dist .. "m"
+                    if h and h.Parent then
+                        if hasBomb then
+                            h.FillColor = Color3.fromRGB(255, 50, 50)
+                            lbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+                        else
+                            h.FillColor = Color3.fromRGB(80, 255, 120)
+                            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end
+
+    local function TBT_ClearESP()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character then
+                local h = p.Character:FindFirstChild("BoSqr_TBT_ESP")
+                local head = p.Character:FindFirstChild("Head")
+                if h then h:Destroy() end
+                if head then
+                    local bb = head:FindFirstChild("BoSqr_TBT_BB")
+                    if bb then bb:Destroy() end
+                end
+            end
+        end
+    end
+
+    -- ── Give Bomb function ────────────────────────
+    local function TBT_GiveBomb(targetName)
+        local target = TBT_FindPlayer(targetName)
+        if not target then Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return end
+        if not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
+            Notify("⚠️", Lang=="AR" and "اللاعب بلا جسم" or "Target has no character") return
+        end
+        local myChar = Player.Character
+        if not myChar then return end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+
+        -- Get bomb
+        local bomb = TBT_HasBomb(myChar)
+        if not bomb then
+            Notify("⚠️", Lang=="AR" and "ما عندك قنبلة!" or "You don't have a bomb!") return
+        end
+
+        local targetPos = target.Character.HumanoidRootPart.Position
+        local origPos = myHRP.CFrame
+        -- Teleport to target
+        myHRP.CFrame = CFrame.new(targetPos + target.Character.HumanoidRootPart.CFrame.LookVector * -2, targetPos)
+        task.wait(0.2)
+        -- Look at target's head
+        local head = target.Character:FindFirstChild("Head")
+        if head then
+            myHRP.CFrame = CFrame.lookAt(myHRP.Position, head.Position)
+        end
+        -- Transfer the bomb
+        pcall(function()
+            bomb.Parent = target.Character
+        end)
+        -- Fire any related RemoteEvents
+        task.spawn(function()
+            for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                if re:IsA("RemoteEvent") and re.Name:lower():find("bomb") then
+                    pcall(function()
+                        re:FireServer(target)
+                        re:FireServer(target.Character)
+                    end)
+                end
+            end
+        end)
+        Notify("💣", (Lang=="AR" and "أعطيت القنبلة لـ " or "Gave bomb to ") .. target.Name)
+        -- Return to original
+        task.wait(0.3)
+        pcall(function() myHRP.CFrame = origPos end)
+    end
+
+    -- ── TABS TBT ───────────────────────────────────
+    local Tabs = {
+        Home    = Window:AddTab({ Title = L("home"),    Icon = "home" }),
+        Bomb    = Window:AddTab({ Title = "💣 Bomb",    Icon = "bomb" }),
+        ESP     = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
+        Player  = Window:AddTab({ Title = L("player"),  Icon = "user" }),
+        Visual  = Window:AddTab({ Title = L("visual"),  Icon = "sparkles" }),
+        Misc    = Window:AddTab({ Title = L("misc"),    Icon = "wrench" }),
+        Config  = Window:AddTab({ Title = L("config"),  Icon = "sliders-horizontal" }),
+    }
+
+    -- ── HOME ──────────────────────────────────────
+    Tabs.Home:AddSection("💣 Bo.Sqr | TimeBomb Duels")
+    Tabs.Home:AddParagraph({
+        Title = "👑 " .. L("dev"),
+        Content = "💬 " .. L("dev_content")
+    })
+    Tabs.Home:AddParagraph({
+        Title = "👤 " .. L("profile"),
+        Content = "Name: @" .. Player.Name .. "\nID: " .. tostring(Player.UserId) .. "\nExecutor: " .. _identifyexecutor()
+    })
+    Tabs.Home:AddButton({
+        Title = "💬 " .. L("copy_discord"),
+        Description = "discord.gg/Riveteam",
+        Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅",L("copy_done")) end
+    })
+
+    -- ── BOMB ──────────────────────────────────────
+    Tabs.Bomb:AddSection("🎯 " .. (Lang=="AR" and "اختيار الهدف" or "Target Selection"))
+
+    local function TBT_GetPlayerNames()
+        local names = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= Player then table.insert(names, p.Name) end
+        end
+        if #names == 0 then names = {"-- لا يوجد --"} end
+        return names
+    end
+
+    local TBT_PlayerDrop = Tabs.Bomb:AddDropdown("TBT_TargetDrop", {
+        Title = "🎯 " .. (Lang=="AR" and "اختر اللاعب" or "Select Player"),
+        Values = TBT_GetPlayerNames(),
+        Multi = false,
+        Default = TBT_GetPlayerNames()[1]
+    })
+    TBT_PlayerDrop:OnChanged(function(v)
+        if v and v ~= "-- لا يوجد --" then TBT_TargetName = v end
+    end)
+    Tabs.Bomb:AddButton({
+        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh List"),
+        Callback = function()
+            local names = TBT_GetPlayerNames()
+            pcall(function() TBT_PlayerDrop:SetValues(names) end)
+            Notify("🔄", Lang=="AR" and "تم التحديث" or "Refreshed")
+        end
+    })
+
+    Tabs.Bomb:AddSection("💣 " .. (Lang=="AR" and "ميزات القنبلة" or "Bomb Features"))
+
+    Tabs.Bomb:AddButton({
+        Title = "💣 " .. (Lang=="AR" and "أعطِ القنبلة للهدف" or "Give Bomb to Target"),
+        Description = Lang=="AR" and "تنتقل للهدف وتنقل القنبلة له" or "Teleport and transfer bomb",
+        Callback = function() TBT_GiveBomb(TBT_TargetName) end
+    })
+
+    -- Auto Transfer (يرسل القنبلة تلقائياً للأقرب)
+    Tabs.Bomb:AddToggle("TBT_AutoTransfer", {
+        Title = "💣 " .. (Lang=="AR" and "نقل تلقائي (للأقرب)" or "Auto Transfer (Nearest)"),
+        Description = Lang=="AR" and "ينقل القنبلة لأقرب لاعب فور حصولها" or "Auto sends bomb to nearest player",
+        Default = false
+    }):OnChanged(function()
+        TBT_AutoTransferActive = Options.TBT_AutoTransfer.Value
+        if TBT_AutoTransferActive then
+            Notify("💣", Lang=="AR" and "نقل تلقائي مفعل" or "Auto Transfer ON")
+            task.spawn(function()
+                while TBT_AutoTransferActive do
+                    task.wait(0.8)
+                    local myChar = Player.Character
+                    if myChar and TBT_HasBomb(myChar) then
+                        -- اعثر على أقرب لاعب
+                        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+                        if myHRP then
+                            local closest, minDist = nil, math.huge
+                            for _, p in pairs(Players:GetPlayers()) do
+                                if p ~= Player and p.Character
+                                   and p.Character:FindFirstChild("HumanoidRootPart") then
+                                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                                    if hum and hum.Health > 0 then
+                                        local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                                        if d < minDist then minDist = d closest = p end
+                                    end
+                                end
+                            end
+                            if closest then TBT_GiveBomb(closest.Name) end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- Anti-Bomb (يدفع القنبلة بعيد)
+    Tabs.Bomb:AddToggle("TBT_AntiBomb", {
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (حماية)" or "Anti Bomb"),
+        Description = Lang=="AR" and "يحاول رفض استلام القنابل" or "Tries to reject incoming bombs",
+        Default = false
+    }):OnChanged(function()
+        TBT_AntiBombActive = Options.TBT_AntiBomb.Value
+        if TBT_AntiBombActive then
+            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
+        end
+    end)
+
+    -- ── ESP ──────────────────────────────────────
+    Tabs.ESP:AddSection("👁️ " .. L("esp"))
+    Tabs.ESP:AddToggle("TBT_ESP", {
+        Title = "👁️ " .. (Lang=="AR" and "كشف اللاعبين (ESP)" or "Players ESP"),
+        Description = Lang=="AR" and "أحمر = معه قنبلة | أخضر = آمن" or "Red = has bomb | Green = safe",
+        Default = false
+    }):OnChanged(function()
+        TBT_ESPActive = Options.TBT_ESP.Value
+        if TBT_ESPActive then
+            for _, p in pairs(Players:GetPlayers()) do
+                TBT_CreateESP(p)
+            end
+            Players.PlayerAdded:Connect(function(p)
+                if TBT_ESPActive then
+                    p.CharacterAdded:Connect(function()
+                        task.wait(0.5)
+                        TBT_CreateESP(p)
+                    end)
+                end
+            end)
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= Player then
+                    p.CharacterAdded:Connect(function()
+                        if TBT_ESPActive then task.wait(0.3) TBT_CreateESP(p) end
+                    end)
+                end
+            end
+            Notify("👁️", Lang=="AR" and "ESP مفعل" or "ESP ON")
+        else
+            TBT_ClearESP()
+        end
+    end)
+
+    -- ── PLAYER ───────────────────────────────────
+    Tabs.Player:AddSection("📊 " .. (Lang=="AR" and "حركة اللاعب" or "Player Movement"))
+    Tabs.Player:AddSlider("TBT_WalkSpeed", {
+        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
+        Min = 16, Max = 200, Default = 16, Rounding = 0,
+        Callback = function(v)
+            if Humanoid then Humanoid.WalkSpeed = v end
+        end
+    })
+    Tabs.Player:AddSlider("TBT_JumpPower", {
+        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
+        Min = 50, Max = 300, Default = 50, Rounding = 0,
+        Callback = function(v)
+            if Humanoid then Humanoid.JumpPower = v end
+        end
+    })
+
+    Tabs.Player:AddSection("✈️ " .. (Lang=="AR" and "حركة إضافية" or "Extra Movement"))
+
+    -- Fly
+    local TBT_FlyActive = false
+    local TBT_FlyConn = nil
+    local TBT_FlySpeed = 50
+    Tabs.Player:AddToggle("TBT_Fly", {
+        Title = "✈️ " .. (Lang=="AR" and "طيران" or "Fly"),
+        Default = false
+    }):OnChanged(function()
+        TBT_FlyActive = Options.TBT_Fly.Value
+        if TBT_FlyActive then
+            if not HRP then return end
+            local bg = Instance.new("BodyGyro")
+            bg.Name = "BoSqr_FlyG"
+            bg.MaxTorque = Vector3.new(9e9,9e9,9e9)
+            bg.P = 9e4
+            bg.CFrame = HRP.CFrame
+            bg.Parent = HRP
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "BoSqr_FlyV"
+            bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+            bv.Velocity = Vector3.new(0,0,0)
+            bv.Parent = HRP
+            TBT_FlyConn = RunService.RenderStepped:Connect(function()
+                if not TBT_FlyActive or not HRP then return end
+                local cam = workspace.CurrentCamera
+                local mv = Vector3.new(0,0,0)
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then mv = mv + cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then mv = mv - cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then mv = mv - cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then mv = mv + cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
+                if mv.Magnitude > 0 then mv = mv.Unit * TBT_FlySpeed end
+                bv.Velocity = mv
+                bg.CFrame = cam.CFrame
+            end)
+            Notify("✈️", Lang=="AR" and "طيران مفعل" or "Fly ON")
+        else
+            if TBT_FlyConn then TBT_FlyConn:Disconnect() TBT_FlyConn = nil end
+            if HRP then
+                for _, v in pairs(HRP:GetChildren()) do
+                    if v.Name == "BoSqr_FlyG" or v.Name == "BoSqr_FlyV" then v:Destroy() end
+                end
+            end
+        end
+    end)
+    Tabs.Player:AddSlider("TBT_FlySpeed", {
+        Title = "✈️ " .. (Lang=="AR" and "سرعة الطيران" or "Fly Speed"),
+        Min = 10, Max = 300, Default = 50, Rounding = 0,
+        Callback = function(v) TBT_FlySpeed = v end
+    })
+
+    -- Noclip
+    local TBT_NoclipActive = false
+    local TBT_NoclipConn = nil
+    Tabs.Player:AddToggle("TBT_Noclip", {
+        Title = "👻 Noclip",
+        Default = false
+    }):OnChanged(function()
+        TBT_NoclipActive = Options.TBT_Noclip.Value
+        if TBT_NoclipActive then
+            TBT_NoclipConn = RunService.Stepped:Connect(function()
+                if Character then
+                    for _, p in pairs(Character:GetDescendants()) do
+                        if p:IsA("BasePart") then p.CanCollide = false end
+                    end
+                end
+            end)
+        else
+            if TBT_NoclipConn then TBT_NoclipConn:Disconnect() TBT_NoclipConn = nil end
+            if Character then
+                for _, p in pairs(Character:GetDescendants()) do
+                    if p:IsA("BasePart") then p.CanCollide = true end
+                end
+            end
+        end
+    end)
+
+    -- Infinite Jump
+    Tabs.Player:AddToggle("TBT_InfJump", {
+        Title = "🦘 " .. (Lang=="AR" and "قفز لا نهائي" or "Infinite Jump"),
+        Default = false
+    }):OnChanged(function()
+        if Options.TBT_InfJump.Value and not _G.TBT_InfJumpInit then
+            _G.TBT_InfJumpInit = true
+            UserInputService.JumpRequest:Connect(function()
+                if Options.TBT_InfJump and Options.TBT_InfJump.Value and Humanoid then
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+        end
+    end)
+
+    -- ── ANTI-MOVEMENT-LOCK BUTTON (الحل لمشكلة الجوال) ──
+    Tabs.Player:AddSection("🆘 " .. (Lang=="AR" and "حالات الطوارئ" or "Emergency"))
+    Tabs.Player:AddButton({
+        Title = "🆘 " .. (Lang=="AR" and "تحرير الحركة (لو علقت!)" or "Unfreeze Movement (if stuck)"),
+        Description = Lang=="AR" and "اضغط إذا ما تقدر تتحرك" or "Press if you can't move",
+        Callback = function()
+            local c = Player.Character
+            if not c then return end
+            for _, p in pairs(c:GetDescendants()) do
+                if p:IsA("BodyVelocity") or p:IsA("BodyGyro")
+                   or p:IsA("BodyMover") or p:IsA("BodyForce")
+                   or p:IsA("BodyPosition") or p:IsA("BodyAngularVelocity") then
+                    p:Destroy()
+                end
+                if p:IsA("BasePart") then
+                    p.Anchored = false
+                    p.CanCollide = true
+                end
+            end
+            local h = c:FindFirstChildOfClass("Humanoid")
+            if h then
+                h.WalkSpeed = 16
+                h.JumpPower = 50
+                h.AutoRotate = true
+                h.PlatformStand = false
+                h.Sit = false
+            end
+            Notify("🆘", Lang=="AR" and "تم تحرير الحركة!" or "Movement unlocked!")
+        end
+    })
+
+    -- ── VISUAL ─────────────────────────────────────
+    Tabs.Visual:AddSection("💡 " .. (Lang=="AR" and "الإضاءة" or "Lighting"))
+    Tabs.Visual:AddToggle("TBT_FullBright", {
+        Title = "☀️ Full Bright",
+        Default = false
+    }):OnChanged(function()
+        local L = game:GetService("Lighting")
+        if Options.TBT_FullBright.Value then
+            L.Brightness = 10
+            L.ClockTime = 14
+            L.FogEnd = 1e6
+            L.GlobalShadows = false
+        else
+            L.Brightness = 2 L.ClockTime = 14 L.FogEnd = 100000 L.GlobalShadows = true
+        end
+    end)
+    Tabs.Visual:AddSlider("TBT_FOV", {
+        Title = "👁️ " .. (Lang=="AR" and "مجال الرؤية" or "Field of View"),
+        Min = 40, Max = 120, Default = 70, Rounding = 0,
+        Callback = function(v) workspace.CurrentCamera.FieldOfView = v end
+    })
+
+    -- ── MISC ──────────────────────────────────────
+    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
+    Tabs.Misc:AddToggle("TBT_AntiAFK", {
+        Title = "😴 Anti AFK",
+        Default = true
+    }):OnChanged(function() _G.TBT_AntiAFK = Options.TBT_AntiAFK.Value end)
+    -- AntiAFK loop
+    LocalPlayer.Idled:Connect(function()
+        if _G.TBT_AntiAFK then
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end
+    end)
+
+    Tabs.Misc:AddButton({
+        Title = "🌍 " .. (Lang=="AR" and "تيليبورت عشوائي" or "Random Teleport"),
+        Callback = function()
+            if not HRP then return end
+            local rx = math.random(-200, 200)
+            local rz = math.random(-200, 200)
+            HRP.CFrame = HRP.CFrame + Vector3.new(rx, 5, rz)
+            Notify("🌍", Lang=="AR" and "تيليبورت!" or "Teleported!")
+        end
+    })
+    Tabs.Misc:AddButton({
+        Title = "🏠 " .. (Lang=="AR" and "العودة للسباون" or "Reset to Spawn"),
+        Callback = function() if Humanoid then Humanoid.Health = 0 end end
+    })
+
+    -- ── CONFIG ────────────────────────────────────
+    Tabs.Config:AddSection("🎨 " .. L("config_theme"))
+    local _themeMapTBT = {
+        Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
+        Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
+        Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
+        Green={Accent=Color3.fromRGB(0,200,80),Dark=Color3.fromRGB(10,20,12)},
+        Orange={Accent=Color3.fromRGB(255,140,0),Dark=Color3.fromRGB(22,14,8)},
+        Red={Accent=Color3.fromRGB(255,50,50),Dark=Color3.fromRGB(22,8,8)},
+        Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
+        Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
+    }
+    local function applyThemeTBT(v)
+        local t = _themeMapTBT[v] if not t then return end
+        _G.BoSqr_Theme = v
+        task.spawn(function()
+            pcall(function()
+                local function recolor(obj)
+                    if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
+                        local c=obj.BackgroundColor3
+                        local r,g,b=c.R*255,c.G*255,c.B*255
+                        if r<55 and g<55 and b<65 and obj.BackgroundTransparency<0.9 then
+                            obj.BackgroundColor3=t.Dark
+                        end
+                    end
+                    if obj:IsA("UIStroke") then obj.Color=t.Accent end
+                    for _,ch in pairs(obj:GetChildren()) do recolor(ch) end
+                end
+                local cg=game:GetService("CoreGui")
+                for _,ch in pairs(cg:GetChildren()) do pcall(recolor,ch) end
+                local pg=Player:FindFirstChild("PlayerGui")
+                if pg then for _,ch in pairs(pg:GetChildren()) do pcall(recolor,ch) end end
+            end)
+            Notify("🎨",v.." ✅")
+        end)
+    end
+    if _G.BoSqr_Theme then task.delay(1,function() pcall(applyThemeTBT,_G.BoSqr_Theme) end) end
+    local TBT_ThemeDrop = Tabs.Config:AddDropdown("TBT_ThemeDrop", {
+        Title = L("config_theme"),
+        Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
+        Multi = false, Default = _G.BoSqr_Theme or "Rose"
+    })
+    TBT_ThemeDrop:OnChanged(applyThemeTBT)
+
+    Tabs.Config:AddSection("🌐 " .. L("config_lang"))
+    local _ldDefault = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
+    local TBT_LangDrop = Tabs.Config:AddDropdown("TBT_LangDrop", {
+        Title = L("config_lang"),
+        Values = {"EN - English", "AR - العربية"},
+        Multi = false, Default = _ldDefault
+    })
+    TBT_LangDrop:OnChanged(function(v)
+        if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
+        else Lang = "EN" _G.BoSqr_Lang = "EN" end
+        Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
+    end)
+
+    Tabs.Config:AddSection("⚙️")
+    Tabs.Config:AddButton({
+        Title = "❌ " .. L("close_script"),
+        Callback = function()
+            TBT_ESPActive = false
+            TBT_AutoTransferActive = false
+            TBT_FlyActive = false
+            TBT_NoclipActive = false
+            if TBT_FlyConn then TBT_FlyConn:Disconnect() end
+            if TBT_NoclipConn then TBT_NoclipConn:Disconnect() end
+            pcall(TBT_ClearESP)
+            _getgenv().bosqr_loaded = nil
+            pcall(function() Window:Destroy() end)
+        end
+    })
+
+    task.wait(1)
+    Notify("💣 Bo.Sqr | TimeBomb",
+        (Lang=="AR" and "تم التحميل!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"
+         or "Loaded!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"), 8)
+    print("✅ Bo.Sqr | TimeBomb Duels - تم التحميل | Discord: Riveteam")
+
 else
     -- ماب غير معروف
-    warn("⚠️ Bo.Sqr | هذا السكربت مخصص لـ MM2 أو عالم المملكة فقط!")
+    warn("⚠️ Bo.Sqr | هذا السكربت مخصص لـ MM2, عالم المملكة, أو TimeBomb Duels فقط!")
     warn("PlaceId الحالي: " .. tostring(currentMapID))
 end
 
