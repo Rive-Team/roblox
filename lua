@@ -101,11 +101,8 @@ do
                 if p:IsA("BodyVelocity") or p:IsA("BodyGyro")
                    or p:IsA("BodyMover") or p:IsA("BodyForce")
                    or p:IsA("BodyPosition") or p:IsA("BodyAngularVelocity") then
-                    if p.Name:find("Fling") or p.Name:find("Fly")
-                       or p.Name:find("BoSqr") or p.Name:find("Boost")
-                       or p.Name:find("Wheelie") then
-                        p:Destroy()
-                    end
+                    -- احذف أي شي قد يجمد الحركة من سكربت سابق
+                    p:Destroy()
                 end
                 if p:IsA("BasePart") then
                     p.Anchored = false
@@ -124,6 +121,83 @@ do
     end
     cleanChar(plr.Character)
     plr.CharacterAdded:Connect(cleanChar)
+end
+
+-- ── 🩺 Movement Watchdog (يضمن الحركة دائماً) ──
+-- يفحص الشخصية كل 1.5 ثانية. لو الـ Fly مغلق ومع ذلك فيه BodyVelocity تجمد الحركة، يحذفها
+do
+    local plr = game:GetService("Players").LocalPlayer
+    task.spawn(function()
+        while task.wait(1.5) do
+            -- لو Fly مفعل، اتركه
+            if not _G.BoSqr_FlyActive then
+                local c = plr.Character
+                if c then
+                    local hrp = c:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        -- احذف أي BoSqr BodyVelocity/Gyro متبقي
+                        for _, v in pairs(hrp:GetChildren()) do
+                            if (v:IsA("BodyVelocity") or v:IsA("BodyGyro") or v:IsA("BodyMover") or v:IsA("BodyForce"))
+                               and (v.Name:find("BoSqr") or v.Name:find("Fly") or v.Name:find("Fling")) then
+                                v:Destroy()
+                            end
+                        end
+                    end
+                    -- تأكد من Humanoid
+                    local hum = c:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        if hum.PlatformStand then hum.PlatformStand = false end
+                        if not hum.AutoRotate then hum.AutoRotate = true end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ── 🆘 EMERGENCY GLOBAL UNFREEZE KEY ──
+-- زر طوارئ يشتغل بأي وقت من أي جهاز:
+-- PC: اضغط R+L (RightShift + LeftShift)
+-- Mobile: زر "تحرير الحركة" في الواجهة
+-- يحرر الشخصية من أي bug
+do
+    local UIS = game:GetService("UserInputService")
+    local plr = game:GetService("Players").LocalPlayer
+    local function emergencyUnfreeze()
+        local c = plr.Character
+        if not c then return end
+        pcall(function()
+            for _, p in pairs(c:GetDescendants()) do
+                if p:IsA("BodyVelocity") or p:IsA("BodyGyro")
+                   or p:IsA("BodyMover") or p:IsA("BodyForce")
+                   or p:IsA("BodyPosition") or p:IsA("BodyAngularVelocity") then
+                    p:Destroy()
+                end
+                if p:IsA("BasePart") then
+                    p.Anchored = false
+                end
+            end
+            local hum = c:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                hum.AutoRotate = true
+                hum.PlatformStand = false
+                hum.Sit = false
+            end
+        end)
+    end
+    -- Hotkey: اضغط RightShift + LeftShift معاً
+    UIS.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then
+                emergencyUnfreeze()
+            end
+        end
+    end)
+    -- Make it accessible globally
+    _G.BoSqr_Unfreeze = emergencyUnfreeze
 end
 
 -- ══════════════════════════════════════════════
@@ -312,10 +386,25 @@ do
     end)
 
     -- Click to toggle UI (يشتغل على PC + Android + iOS)
+    -- Double-tap = Emergency Unfreeze (يحرر الحركة)
     local _lastClick = 0
+    local _doubleTapTime = 0
     local _uiVisible = true
     _TB.MouseButton1Click:Connect(function()
+        -- Double-tap detection (within 0.4 sec)
         local now = tick()
+        if (now - _doubleTapTime) < 0.4 then
+            -- DOUBLE TAP = Emergency unfreeze
+            if _G.BoSqr_Unfreeze then _G.BoSqr_Unfreeze() end
+            -- Visual feedback
+            _dot.BackgroundColor3 = Color3.fromRGB(255, 220, 0)
+            task.delay(0.5, function()
+                _dot.BackgroundColor3 = Color3.fromRGB(255, 80, 160)
+            end)
+            _doubleTapTime = 0
+            return
+        end
+        _doubleTapTime = now
         if (now - _lastClick) < 0.3 then return end
         _lastClick = now
         -- طريقة 1: VirtualInputManager (PC + Android)
@@ -401,6 +490,30 @@ local Options = Fluent.Options
 
 local function Notify(title, content, duration)
     Fluent:Notify({ Title = title, Content = content, Duration = duration or 4 })
+end
+
+-- ── Auto-stop dangerous features when minimizing UI ──
+-- (يحل مشكلة: تشغل شي وتسكر المنيو فتعلق)
+do
+    local UIS = game:GetService("UserInputService")
+    UIS.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.LeftControl then
+            -- لما يضغط LeftCtrl لإغلاق الواجهة، أعطّل الميزات الخطرة
+            task.delay(0.2, function()
+                -- لا نعطل الـ Fly تلقائياً، لكن نتأكد إن اللاعب يقدر يمشي
+                local c = game:GetService("Players").LocalPlayer.Character
+                if c then
+                    local hum = c:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.AutoRotate = true
+                        hum.PlatformStand = false
+                        hum.Sit = false
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 -- تطبيق الثيم المحفوظ فوراً إن وجد (قبل بناء الـ tabs)
@@ -600,24 +713,82 @@ if currentMapID == _A then
         if flyConn then flyConn:Disconnect() flyConn=nil end
         local char=LocalPlayer.Character if not char then return end
         local hrp=char:FindFirstChild("HumanoidRootPart") if not hrp then return end
-        local bg=Instance.new("BodyGyro") bg.P=9e4 bg.MaxTorque=Vector3.new(9e9,9e9,9e9) bg.CFrame=hrp.CFrame bg.Parent=hrp
-        local bv=Instance.new("BodyVelocity") bv.Velocity=Vector3.new(0,0,0) bv.MaxForce=Vector3.new(9e9,9e9,9e9) bv.Parent=hrp
-        flyConn=RunService.RenderStepped:Connect(function()
-            if not FLY_ENABLED then bg:Destroy() bv:Destroy() return end
-            local cf=Camera.CFrame local mv=Vector3.new(0,0,0)
-            if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+cf.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-cf.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-cf.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+cf.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.Space) then mv=mv+Vector3.new(0,1,0) end
-            if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then mv=mv-Vector3.new(0,1,0) end
-            if mv.Magnitude>0 then mv=mv.Unit*FLY_SPEED end
-            bv.Velocity=mv bg.CFrame=cf
-        end)
+        local hum=char:FindFirstChildOfClass("Humanoid")
+        -- نستخدم Humanoid:Move() بدلاً من BodyVelocity (يدعم الجوال)
+        local _isMobile = UIS.TouchEnabled
+        if _isMobile then
+            -- Mobile fly: استخدم Humanoid.JumpPower + AutoRotate + Float
+            local floatPart = Instance.new("BodyVelocity")
+            floatPart.Name = "BoSqr_FlyV_Mobile"
+            floatPart.MaxForce = Vector3.new(0, math.huge, 0)
+            floatPart.Velocity = Vector3.new(0, 0, 0)
+            floatPart.Parent = hrp
+            flyConn = RunService.Heartbeat:Connect(function()
+                if not FLY_ENABLED then
+                    if floatPart then floatPart:Destroy() end
+                    return
+                end
+                if hum then
+                    -- خلي الحركة العادية تشتغل عبر Humanoid
+                    floatPart.Velocity = Vector3.new(0, hum.MoveDirection.Y * FLY_SPEED, 0)
+                    -- نخلي اللاعب يطفو فوق
+                    if hum.MoveDirection.Magnitude > 0 then
+                        hum.WalkSpeed = FLY_SPEED
+                    else
+                        -- في الجو، يحوم
+                        floatPart.Velocity = Vector3.new(0, 0, 0)
+                    end
+                end
+            end)
+            Notify("✈️", "Fly مفعل (جوال) — استخدم joystick")
+        else
+            -- PC fly: BodyGyro + BodyVelocity مع WASD
+            local bg = Instance.new("BodyGyro")
+            bg.Name = "BoSqr_FlyG"
+            bg.P=9e4 bg.MaxTorque=Vector3.new(9e9,9e9,9e9) bg.CFrame=hrp.CFrame bg.Parent=hrp
+            local bv = Instance.new("BodyVelocity")
+            bv.Name = "BoSqr_FlyV"
+            bv.Velocity=Vector3.new(0,0,0) bv.MaxForce=Vector3.new(9e9,9e9,9e9) bv.Parent=hrp
+            flyConn = RunService.RenderStepped:Connect(function()
+                if not FLY_ENABLED then
+                    if bg then bg:Destroy() end
+                    if bv then bv:Destroy() end
+                    return
+                end
+                local cf = Camera.CFrame
+                local mv = Vector3.new(0,0,0)
+                if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+cf.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-cf.LookVector end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-cf.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+cf.RightVector end
+                if UIS:IsKeyDown(Enum.KeyCode.Space) then mv=mv+Vector3.new(0,1,0) end
+                if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then mv=mv-Vector3.new(0,1,0) end
+                if mv.Magnitude > 0 then mv = mv.Unit * FLY_SPEED end
+                bv.Velocity = mv
+                bg.CFrame = cf
+            end)
+        end
     end
     local function stopFly()
+        FLY_ENABLED = false
         if flyConn then flyConn:Disconnect() flyConn=nil end
-        local c=LocalPlayer.Character if c then local h=c:FindFirstChild("HumanoidRootPart") if h then for _,v in pairs(h:GetChildren()) do if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then v:Destroy() end end end end
+        local c = LocalPlayer.Character
+        if c then
+            local h = c:FindFirstChild("HumanoidRootPart")
+            if h then
+                -- نظف كل BodyVelocity/BodyGyro
+                for _, v in pairs(h:GetChildren()) do
+                    if v:IsA("BodyGyro") or v:IsA("BodyVelocity") or v:IsA("BodyMover") then
+                        v:Destroy()
+                    end
+                end
+            end
+            -- رجع WalkSpeed للوضع الطبيعي (الجوال)
+            local hum = c:FindFirstChildOfClass("Humanoid")
+            if hum then
+                if hum.WalkSpeed > 100 then hum.WalkSpeed = 16 end
+            end
+        end
     end
 
     -- ===== NOCLIP =====
@@ -1588,6 +1759,7 @@ if currentMapID == _A then
     local FlyToggle = Tabs.Player:AddToggle("MM2_Fly", { Title = "✈️ طيران (WASD+Space/Shift)", Default = false })
     FlyToggle:OnChanged(function()
         FLY_ENABLED = Options.MM2_Fly.Value
+        _G.BoSqr_FlyActive = FLY_ENABLED  -- للـ watchdog
         if FLY_ENABLED then startFly() else stopFly() end
     end)
     Tabs.Player:AddSlider("MM2_FlySpeed", {
@@ -2201,27 +2373,64 @@ elseif currentMapID == _B then
     end
 
     local function ToggleFly()
-        FlyActive=not FlyActive
+        FlyActive = not FlyActive
         if FlyActive then
-            local bg=Instance.new("BodyGyro") bg.Name="FlyGyro" bg.P=10000 bg.MaxTorque=Vector3.new(10000,10000,10000) bg.CFrame=HRP.CFrame bg.Parent=HRP
-            local bv=Instance.new("BodyVelocity") bv.Name="FlyVelocity" bv.Velocity=Vector3.new(0,0,0) bv.MaxForce=Vector3.new(10000,10000,10000) bv.Parent=HRP
-            local speed=_G.FlySpeed or 100
-            FlyConn=RunService.RenderStepped:Connect(function()
-                if not FlyActive then return end if not HRP then return end
-                local cam=workspace.CurrentCamera local mv=Vector3.new(0,0,0) local uis=UserInputService
-                if uis:IsKeyDown(Enum.KeyCode.W) then mv=mv+cam.CFrame.LookVector end
-                if uis:IsKeyDown(Enum.KeyCode.S) then mv=mv-cam.CFrame.LookVector end
-                if uis:IsKeyDown(Enum.KeyCode.A) then mv=mv-cam.CFrame.RightVector end
-                if uis:IsKeyDown(Enum.KeyCode.D) then mv=mv+cam.CFrame.RightVector end
-                if uis:IsKeyDown(Enum.KeyCode.Space) then mv=mv+Vector3.new(0,1,0) end
-                if uis:IsKeyDown(Enum.KeyCode.LeftShift) then mv=mv-Vector3.new(0,1,0) end
-                if mv.Magnitude>0 then mv=mv.Unit*speed end bv.Velocity=mv bg.CFrame=cam.CFrame
-            end)
-            Notify("✈️ طيران","WASD | Space للأعلى | Shift للأسفل",5)
+            local uis = UserInputService
+            local _isMob = uis.TouchEnabled
+            local speed = _G.FlySpeed or 100
+            if _isMob then
+                -- Mobile fly: استخدم Humanoid.WalkSpeed + JumpPower عالي
+                FlyConn = RunService.Heartbeat:Connect(function()
+                    if not FlyActive or not HRP or not Humanoid then return end
+                    local md = Humanoid.MoveDirection
+                    if md.Magnitude > 0 then
+                        HRP.Velocity = md * speed + Vector3.new(0, HRP.Velocity.Y, 0)
+                    end
+                    -- اجعل اللاعب يطفو
+                    HRP.Velocity = Vector3.new(HRP.Velocity.X, math.max(0, HRP.Velocity.Y), HRP.Velocity.Z)
+                end)
+                if Humanoid then Humanoid.JumpPower = 200 end
+                Notify("✈️", Lang=="AR" and "طيران (جوال) مفعل" or "Fly (Mobile) ON", 5)
+            else
+                -- PC fly
+                local bg = Instance.new("BodyGyro")
+                bg.Name = "BoSqr_KW_FlyG"
+                bg.P = 10000 bg.MaxTorque = Vector3.new(10000,10000,10000)
+                bg.CFrame = HRP.CFrame bg.Parent = HRP
+                local bv = Instance.new("BodyVelocity")
+                bv.Name = "BoSqr_KW_FlyV"
+                bv.Velocity = Vector3.new(0,0,0)
+                bv.MaxForce = Vector3.new(10000,10000,10000)
+                bv.Parent = HRP
+                FlyConn = RunService.RenderStepped:Connect(function()
+                    if not FlyActive then return end
+                    if not HRP then return end
+                    local cam = workspace.CurrentCamera
+                    local mv = Vector3.new(0,0,0)
+                    if uis:IsKeyDown(Enum.KeyCode.W) then mv = mv + cam.CFrame.LookVector end
+                    if uis:IsKeyDown(Enum.KeyCode.S) then mv = mv - cam.CFrame.LookVector end
+                    if uis:IsKeyDown(Enum.KeyCode.A) then mv = mv - cam.CFrame.RightVector end
+                    if uis:IsKeyDown(Enum.KeyCode.D) then mv = mv + cam.CFrame.RightVector end
+                    if uis:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
+                    if uis:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
+                    if mv.Magnitude > 0 then mv = mv.Unit * speed end
+                    bv.Velocity = mv
+                    bg.CFrame = cam.CFrame
+                end)
+                Notify("✈️ طيران", "WASD | Space | Shift", 5)
+            end
         else
-            if FlyConn then FlyConn:Disconnect() end
-            local gyro=HRP:FindFirstChild("FlyGyro") local vel=HRP:FindFirstChild("FlyVelocity")
-            if gyro then gyro:Destroy() end if vel then vel:Destroy() end Notify("⛔","تم إيقاف الطيران")
+            if FlyConn then FlyConn:Disconnect() FlyConn = nil end
+            if HRP then
+                for _, v in pairs(HRP:GetChildren()) do
+                    if v:IsA("BodyGyro") or v:IsA("BodyVelocity")
+                       or v:IsA("BodyForce") or v:IsA("BodyMover") then
+                        v:Destroy()
+                    end
+                end
+            end
+            if Humanoid then Humanoid.JumpPower = 50 end
+            Notify("⛔", Lang=="AR" and "تم إيقاف الطيران" or "Fly OFF")
         end
     end
 
@@ -2463,6 +2672,7 @@ elseif currentMapID == _B then
     FlyToggleKW:OnChanged(function()
         if Options.KW_Fly.Value then if not FlyActive then ToggleFly() end
         else if FlyActive then ToggleFly() end end
+        _G.BoSqr_FlyActive = FlyActive
     end)
     Tabs.Player:AddSlider("KW_FlySpeed", { Title="✈️ سرعة الطيران", Min=50, Max=500, Default=100, Rounding=0,
         Callback=function(v) _G.FlySpeed=v end })
@@ -3349,41 +3559,62 @@ elseif currentMapID == _C then
         Default = false
     }):OnChanged(function()
         TBT_FlyActive = Options.TBT_Fly.Value
+        _G.BoSqr_FlyActive = TBT_FlyActive
         if TBT_FlyActive then
             if not HRP then return end
-            local bg = Instance.new("BodyGyro")
-            bg.Name = "BoSqr_FlyG"
-            bg.MaxTorque = Vector3.new(9e9,9e9,9e9)
-            bg.P = 9e4
-            bg.CFrame = HRP.CFrame
-            bg.Parent = HRP
-            local bv = Instance.new("BodyVelocity")
-            bv.Name = "BoSqr_FlyV"
-            bv.MaxForce = Vector3.new(9e9,9e9,9e9)
-            bv.Velocity = Vector3.new(0,0,0)
-            bv.Parent = HRP
-            TBT_FlyConn = RunService.RenderStepped:Connect(function()
-                if not TBT_FlyActive or not HRP then return end
-                local cam = workspace.CurrentCamera
-                local mv = Vector3.new(0,0,0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then mv = mv + cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then mv = mv - cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then mv = mv - cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then mv = mv + cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
-                if mv.Magnitude > 0 then mv = mv.Unit * TBT_FlySpeed end
-                bv.Velocity = mv
-                bg.CFrame = cam.CFrame
-            end)
-            Notify("✈️", Lang=="AR" and "طيران مفعل" or "Fly ON")
+            local _isMob = UserInputService.TouchEnabled
+            if _isMob then
+                -- Mobile fly: استخدم HRP.Velocity مباشرة
+                TBT_FlyConn = RunService.Heartbeat:Connect(function()
+                    if not TBT_FlyActive or not HRP or not Humanoid then return end
+                    local md = Humanoid.MoveDirection
+                    if md.Magnitude > 0 then
+                        HRP.Velocity = md * TBT_FlySpeed + Vector3.new(0, HRP.Velocity.Y * 0.5, 0)
+                    end
+                    HRP.Velocity = Vector3.new(HRP.Velocity.X, math.max(0, HRP.Velocity.Y), HRP.Velocity.Z)
+                end)
+                if Humanoid then Humanoid.JumpPower = 200 end
+                Notify("✈️", Lang=="AR" and "طيران (جوال)" or "Fly (Mobile)")
+            else
+                -- PC fly
+                local bg = Instance.new("BodyGyro")
+                bg.Name = "BoSqr_FlyG"
+                bg.MaxTorque = Vector3.new(9e9,9e9,9e9)
+                bg.P = 9e4
+                bg.CFrame = HRP.CFrame
+                bg.Parent = HRP
+                local bv = Instance.new("BodyVelocity")
+                bv.Name = "BoSqr_FlyV"
+                bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+                bv.Velocity = Vector3.new(0,0,0)
+                bv.Parent = HRP
+                TBT_FlyConn = RunService.RenderStepped:Connect(function()
+                    if not TBT_FlyActive or not HRP then return end
+                    local cam = workspace.CurrentCamera
+                    local mv = Vector3.new(0,0,0)
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then mv = mv + cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then mv = mv - cam.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then mv = mv - cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then mv = mv + cam.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
+                    if mv.Magnitude > 0 then mv = mv.Unit * TBT_FlySpeed end
+                    bv.Velocity = mv
+                    bg.CFrame = cam.CFrame
+                end)
+                Notify("✈️", "Fly ON")
+            end
         else
             if TBT_FlyConn then TBT_FlyConn:Disconnect() TBT_FlyConn = nil end
             if HRP then
                 for _, v in pairs(HRP:GetChildren()) do
-                    if v.Name == "BoSqr_FlyG" or v.Name == "BoSqr_FlyV" then v:Destroy() end
+                    if v:IsA("BodyGyro") or v:IsA("BodyVelocity")
+                       or v:IsA("BodyForce") or v:IsA("BodyMover") then
+                        v:Destroy()
+                    end
                 end
             end
+            if Humanoid then Humanoid.JumpPower = 50 end
         end
     end)
     Tabs.Player:AddSlider("TBT_FlySpeed", {
