@@ -349,143 +349,8 @@ local T = {
 }
 local function L(key) return (T[Lang] and T[Lang][key]) or key end
 
--- ── Toggle Bar (Draggable, PC & Mobile & iOS) ──
+-- ── Device Detection (used everywhere) ──
 local DeviceType = game:GetService("UserInputService").TouchEnabled and "Mobile" or "PC"
-do
-    local _SG = Instance.new("ScreenGui")
-    _SG.Name = "BoSqrBtn" _SG.ResetOnSpawn = false
-    _SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() _SG.Parent = game:GetService("CoreGui") end)
-    if not _SG.Parent then _SG.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
-
-    -- Tap Bar — زر دائري صغير (يظهر عند الإغلاق + draggable)
-    local _isMob = game:GetService("UserInputService").TouchEnabled
-    local _btnSize = _isMob and 48 or 42
-
-    local _MF = Instance.new("Frame")
-    _MF.Name = "TapBar" _MF.Parent = _SG
-    _MF.BackgroundColor3 = Color3.fromRGB(28, 28, 40)
-    _MF.BackgroundTransparency = 0
-    _MF.BorderSizePixel = 0
-    _MF.Position = UDim2.new(1, -(_btnSize+12), 0, 12)
-    _MF.Size = UDim2.new(0, _btnSize, 0, _btnSize)
-    _MF.Active = true
-    -- دائري كامل
-    Instance.new("UICorner", _MF).CornerRadius = UDim.new(1, 0)
-    -- إطار وردي
-    local _stroke2 = Instance.new("UIStroke", _MF)
-    _stroke2.Color = Color3.fromRGB(255, 80, 160)
-    _stroke2.Thickness = 2
-    -- gradient خلفية
-    local _shadow = Instance.new("UIGradient", _MF)
-    _shadow.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(45,30,55)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20,18,28))
-    })
-    _shadow.Rotation = 135
-
-    -- أيقونة "BS" بالنص (حروف أول من Bo.Sqr)
-    local _TL = Instance.new("TextLabel")
-    _TL.Parent = _MF
-    _TL.BackgroundTransparency = 1
-    _TL.Size = UDim2.new(1, 0, 1, 0)
-    _TL.Position = UDim2.new(0, 0, 0, 0)
-    _TL.Font = Enum.Font.GothamBold
-    _TL.Text = "👑"
-    _TL.TextColor3 = Color3.fromRGB(255, 215, 100)
-    _TL.TextSize = _isMob and 24 or 20
-    _TL.TextXAlignment = Enum.TextXAlignment.Center
-
-    -- Dot indicator صغيرة (تدل على الحالة)
-    local _dot = Instance.new("Frame")
-    _dot.Parent = _MF
-    _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-    _dot.BorderSizePixel = 0
-    _dot.Size = UDim2.new(0, 10, 0, 10)
-    _dot.Position = UDim2.new(1, -10, 0, -2)
-    _dot.AnchorPoint = Vector2.new(0.5, 0.5)
-    Instance.new("UICorner", _dot).CornerRadius = UDim.new(1, 0)
-    local _dotStroke = Instance.new("UIStroke", _dot)
-    _dotStroke.Color = Color3.fromRGB(28, 28, 40)
-    _dotStroke.Thickness = 2
-
-    -- زر شفاف فوق الكل للنقر
-    local _TB = Instance.new("TextButton")
-    _TB.Parent = _MF
-    _TB.BackgroundTransparency = 1
-    _TB.Size = UDim2.new(1, 0, 1, 0)
-    _TB.Text = ""
-    _TB.AutoButtonColor = false
-
-    -- Drag logic
-    local _drag2, _ds2, _dp2 = false, nil, nil
-    local _UIS2 = game:GetService("UserInputService")
-    _TB.InputBegan:Connect(function(inp)
-        if inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseButton1 then
-            _drag2=true _ds2=inp.Position _dp2=_MF.Position
-        end
-    end)
-    _UIS2.InputChanged:Connect(function(inp)
-        if _drag2 and (inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseMove) then
-            local d=inp.Position-_ds2
-            _MF.Position=UDim2.new(_dp2.X.Scale,_dp2.X.Offset+d.X,_dp2.Y.Scale,_dp2.Y.Offset+d.Y)
-        end
-    end)
-    _UIS2.InputEnded:Connect(function(inp)
-        if inp.UserInputType==Enum.UserInputType.Touch or inp.UserInputType==Enum.UserInputType.MouseButton1 then
-            _drag2=false
-        end
-    end)
-
-    -- TapBar: نقرة واحدة = إظهار/إخفاء | نقرتين سريعة = تحرير الحركة
-    local _lastTap = 0
-    local _doubleTapTime = 0
-    local _uiVisible = true
-    _TB.MouseButton1Click:Connect(function()
-        local now = tick()
-        -- Double-tap detection
-        if (now - _doubleTapTime) < 0.4 then
-            if _G.BoSqr_Unfreeze then _G.BoSqr_Unfreeze() end
-            _dot.BackgroundColor3 = Color3.fromRGB(255, 220, 0)
-            task.delay(0.5, function()
-                if _dot then _dot.BackgroundColor3 = Color3.fromRGB(255, 80, 160) end
-            end)
-            _doubleTapTime = 0
-            _lastTap = 0
-            return
-        end
-        _doubleTapTime = now
-        if (now - _lastTap) < 0.3 then return end
-        _lastTap = now
-        -- Toggle UI - الطريقة الصحيحة: نخفي/نظهر الـ ScreenGui مباشرة
-        _uiVisible = not _uiVisible
-        pcall(function()
-            local function setEnabled(parent)
-                if not parent then return end
-                for _, g in pairs(parent:GetChildren()) do
-                    if g:IsA("ScreenGui") then
-                        -- لا نخفي زر TapBar نفسه
-                        if g ~= _SG and (g.Name:find("Fluent") or g.Name:find("Window")
-                           or g.Name == "Bo.Sqr") then
-                            g.Enabled = _uiVisible
-                        end
-                    end
-                end
-            end
-            setEnabled(game:GetService("CoreGui"))
-            setEnabled(LocalPlayer:FindFirstChild("PlayerGui"))
-            if gethui then pcall(function() setEnabled(gethui()) end) end
-        end)
-        -- لون الدوت يدل على الحالة
-        _dot.BackgroundColor3 = _uiVisible
-            and Color3.fromRGB(255,80,160)
-            or  Color3.fromRGB(120,120,120)
-    end)
-end
-
--- ── PlaceId aliases for game logic ───────────
-local _A = _PA  -- MM2
-local _B = _PB  -- Kingdom World
 
 -- ══════════════════════════════════════════════
 -- Services & Locals
@@ -546,6 +411,177 @@ local Window = Fluent:CreateWindow({
 })
 
 local Options = Fluent.Options
+
+-- ═══════════════════════════════════════════════
+-- 🔵 Tap Bar (يفتح ويغلق الواجهة)
+-- ═══════════════════════════════════════════════
+do
+    local UIS = game:GetService("UserInputService")
+    local _SG = Instance.new("ScreenGui")
+    _SG.Name = "BoSqrTap"
+    _SG.ResetOnSpawn = false
+    _SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    _SG.DisplayOrder = 999
+    pcall(function() _SG.Parent = game:GetService("CoreGui") end)
+    if not _SG.Parent then _SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+    local _isMob = UIS.TouchEnabled
+    local _btnSize = _isMob and 52 or 44
+
+    -- Frame دائري
+    local _MF = Instance.new("Frame")
+    _MF.Name = "BoSqrButton"
+    _MF.Parent = _SG
+    _MF.BackgroundColor3 = Color3.fromRGB(28, 28, 40)
+    _MF.BorderSizePixel = 0
+    _MF.Position = UDim2.new(1, -(_btnSize+12), 0, 12)
+    _MF.Size = UDim2.new(0, _btnSize, 0, _btnSize)
+    _MF.Active = true
+    Instance.new("UICorner", _MF).CornerRadius = UDim.new(1, 0)
+
+    local _stroke = Instance.new("UIStroke", _MF)
+    _stroke.Color = Color3.fromRGB(80, 200, 230)
+    _stroke.Thickness = 2.5
+
+    -- Gradient
+    local _grad = Instance.new("UIGradient", _MF)
+    _grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 80, 110)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 30, 50)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 50, 80)),
+    })
+    _grad.Rotation = 135
+
+    -- النص الرئيسي "Rive"
+    local _TL = Instance.new("TextLabel")
+    _TL.Parent = _MF
+    _TL.BackgroundTransparency = 1
+    _TL.Size = UDim2.new(1, 0, 0, _btnSize * 0.5)
+    _TL.Position = UDim2.new(0, 0, 0, _btnSize * 0.15)
+    _TL.Font = Enum.Font.GothamBold
+    _TL.Text = "Rive"
+    _TL.TextColor3 = Color3.fromRGB(180, 230, 255)
+    _TL.TextSize = _isMob and 18 or 15
+    _TL.TextStrokeTransparency = 0.5
+    _TL.TextStrokeColor3 = Color3.fromRGB(0, 100, 150)
+
+    -- نص فرعي "SCRIPT"
+    local _TL2 = Instance.new("TextLabel")
+    _TL2.Parent = _MF
+    _TL2.BackgroundTransparency = 1
+    _TL2.Size = UDim2.new(1, 0, 0, _btnSize * 0.3)
+    _TL2.Position = UDim2.new(0, 0, 1, -(_btnSize * 0.4))
+    _TL2.Font = Enum.Font.GothamBold
+    _TL2.Text = "SCRIPT"
+    _TL2.TextColor3 = Color3.fromRGB(120, 180, 220)
+    _TL2.TextSize = _isMob and 8 or 7
+
+    -- Dot indicator (الحالة)
+    local _dot = Instance.new("Frame")
+    _dot.Parent = _MF
+    _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 130)
+    _dot.BorderSizePixel = 0
+    _dot.Size = UDim2.new(0, 10, 0, 10)
+    _dot.Position = UDim2.new(1, -10, 0, -2)
+    _dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    Instance.new("UICorner", _dot).CornerRadius = UDim.new(1, 0)
+    local _dotStroke = Instance.new("UIStroke", _dot)
+    _dotStroke.Color = Color3.fromRGB(28, 28, 40)
+    _dotStroke.Thickness = 2
+
+    -- زر شفاف للنقر
+    local _TB = Instance.new("TextButton")
+    _TB.Parent = _MF
+    _TB.BackgroundTransparency = 1
+    _TB.Size = UDim2.new(1, 0, 1, 0)
+    _TB.Text = ""
+    _TB.AutoButtonColor = false
+
+    -- ── Drag logic ──
+    local _drag, _ds, _dp = false, nil, nil
+    local _dragMoved = false
+    _TB.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+           or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            _drag = true
+            _dragMoved = false
+            _ds = input.Position
+            _dp = _MF.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if _drag and (input.UserInputType == Enum.UserInputType.Touch
+                      or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - _ds
+            if delta.Magnitude > 5 then _dragMoved = true end
+            _MF.Position = UDim2.new(
+                _dp.X.Scale, _dp.X.Offset + delta.X,
+                _dp.Y.Scale, _dp.Y.Offset + delta.Y
+            )
+        end
+    end)
+    _TB.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+           or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            _drag = false
+        end
+    end)
+
+    -- ── Click to toggle Fluent window ──
+    local _doubleTapTime = 0
+    local _windowVisible = true
+    _TB.MouseButton1Click:Connect(function()
+        -- ما نفتح/نغلق لو السحب تم
+        if _dragMoved then _dragMoved = false return end
+
+        local now = tick()
+        -- Double tap = طوارئ (تحرير الحركة)
+        if (now - _doubleTapTime) < 0.4 then
+            if _G.BoSqr_Unfreeze then _G.BoSqr_Unfreeze() end
+            _dot.BackgroundColor3 = Color3.fromRGB(255, 220, 0)
+            task.delay(0.6, function()
+                if _dot then _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 130) end
+            end)
+            _doubleTapTime = 0
+            return
+        end
+        _doubleTapTime = now
+
+        -- Toggle الـ Fluent window عبر API الصحيح
+        _windowVisible = not _windowVisible
+        local ok = false
+        -- الطريقة 1: Window:Minimize() (الأفضل لـ Fluent)
+        ok = pcall(function()
+            if Window and Window.Minimize then
+                Window:Minimize()
+            end
+        end)
+        -- الطريقة 2: لو فشل، نتحكم بـ ScreenGui مباشرة
+        if not ok then
+            pcall(function()
+                local function tryToggle(parent)
+                    if not parent then return end
+                    for _, g in pairs(parent:GetChildren()) do
+                        if g:IsA("ScreenGui") and g ~= _SG then
+                            local n = g.Name:lower()
+                            if n:find("fluent") or n:find("window") or n:find("bo") then
+                                g.Enabled = _windowVisible
+                            end
+                        end
+                    end
+                end
+                tryToggle(game:GetService("CoreGui"))
+                tryToggle(LocalPlayer:FindFirstChild("PlayerGui"))
+                if gethui then pcall(function() tryToggle(gethui()) end) end
+            end)
+        end
+
+        -- Visual feedback
+        _dot.BackgroundColor3 = _windowVisible
+            and Color3.fromRGB(0, 255, 130)
+            or  Color3.fromRGB(255, 150, 50)
+    end)
+end
 
 local function Notify(title, content, duration)
     Fluent:Notify({ Title = title, Content = content, Duration = duration or 4 })
@@ -1044,13 +1080,15 @@ if currentMapID == _A then
     -- TABS MM2
     -- ══════════════════════════════════════════════
     local Tabs = {
-        Home    = Window:AddTab({ Title = L("home"),    Icon = "home" }),
-        Esp     = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
-        Combat  = Window:AddTab({ Title = L("combat"),  Icon = "crosshair" }),
-        Player  = Window:AddTab({ Title = L("player"),  Icon = "user" }),
-        World   = Window:AddTab({ Title = L("world"),   Icon = "globe" }),
-        Misc    = Window:AddTab({ Title = L("misc"),    Icon = "wrench" }),
-        Config  = Window:AddTab({ Title = L("config"),  Icon = "sliders-horizontal" }),
+        Home     = Window:AddTab({ Title = L("home"),    Icon = "home" }),
+        Esp      = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
+        Combat   = Window:AddTab({ Title = L("combat"),  Icon = "crosshair" }),
+        Coins    = Window:AddTab({ Title = (Lang=="AR" and "الفلوس" or "Coins"),     Icon = "coins" }),
+        Teleport = Window:AddTab({ Title = (Lang=="AR" and "التنقل" or "Teleport"),  Icon = "map-pin" }),
+        Player   = Window:AddTab({ Title = L("player"),  Icon = "user" }),
+        World    = Window:AddTab({ Title = L("world"),   Icon = "globe" }),
+        Misc     = Window:AddTab({ Title = L("misc"),    Icon = "wrench" }),
+        Config   = Window:AddTab({ Title = L("config"),  Icon = "sliders-horizontal" }),
     }
 
     -- ── HOME ──────────────────────────────────────
@@ -1095,35 +1133,7 @@ if currentMapID == _A then
     DistESP:OnChanged(function() DISTANCE_ESP_ENABLED = Options.MM2_Distance.Value end)
     local HpESP = Tabs.Esp:AddToggle("MM2_Health", { Title = L("hp_esp"), Default = false })
     HpESP:OnChanged(function() HEALTH_ESP_ENABLED = Options.MM2_Health.Value end)
-    Tabs.Esp:AddSection("🚀 " .. L("teleport"))
-    Tabs.Esp:AddButton({
-        Title = "🔫 " .. L("tp_sheriff"),
-        Callback = function()
-            for _,plr in pairs(Players:GetPlayers()) do
-                if plr~=LocalPlayer and getPlayerRole(plr)=="SHERIFF" then
-                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame=plr.Character.HumanoidRootPart.CFrame*CFrame.new(0,0,3)
-                        Notify("✅",L("notif_sheriff")) return
-                    end
-                end
-            end
-            Notify("⚠️",L("notif_no_sheriff"))
-        end
-    })
-    Tabs.Esp:AddButton({
-        Title = "🔪 " .. L("tp_killer"),
-        Callback = function()
-            for _,plr in pairs(Players:GetPlayers()) do
-                if plr~=LocalPlayer and getPlayerRole(plr)=="KILLER" then
-                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame=plr.Character.HumanoidRootPart.CFrame*CFrame.new(0,0,3)
-                        Notify("✅",L("notif_killer_tp")) return
-                    end
-                end
-            end
-            Notify("⚠️",L("notif_no_killer"))
-        end
-    })
+    -- Teleport features moved to Teleport tab
 
     -- ── COMBAT ────────────────────────────────────
     Tabs.Combat:AddSection("🎯 Aimbot")
@@ -1521,6 +1531,7 @@ if currentMapID == _A then
         return nil
     end
 
+    -- Kill function - مبسّطة وآمنة (ما تكرّش)
     local function MM2_DoKill(p, myHRP)
         if not MM2_IsValidTarget(p) then return false end
         local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
@@ -1528,43 +1539,27 @@ if currentMapID == _A then
         if not hrp or not hum then return false end
 
         local knife = MM2_GetKnife()
-        if not knife then return false end -- لازم عندك سكين
+        if not knife then return false end
 
         local handle = knife:FindFirstChild("Handle")
         if not handle then return false end
 
-        -- الطريقة الحقيقية من السورس المفتوح:
-        -- firetouchinterest(EnemyRoot, Knife.Handle, 1) ثم 0
-        -- هذا يسجل hit على السيرفر بشكل صحيح
-
-        -- Step 1: تقرب من الهدف (ضروري للـ hitbox)
-        myHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, 1.5)
-        task.wait(0.05)
-
-        -- Step 2: الطريقة الحقيقية
+        -- خطوة 1: تقرّب من الهدف
         pcall(function()
-            firetouchinterest(hrp, handle, 1) -- touch begin
-            firetouchinterest(hrp, handle, 0) -- touch end
+            myHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, 1.5)
         end)
-        task.wait(0.05)
+        task.wait(0.1)
 
-        -- Step 3: كبّر الـ handle وكرر (backup method)
-        local origSize = handle.Size
-        handle.Size = Vector3.new(15, 15, 15)
-        handle.Transparency = 1
-        task.wait(0.05)
+        -- خطوة 2: firetouchinterest فقط (الطريقة الأكثر أمناً)
         pcall(function()
             firetouchinterest(hrp, handle, 1)
-            task.wait(0.03)
+        end)
+        task.wait(0.05)
+        pcall(function()
             firetouchinterest(hrp, handle, 0)
         end)
-        task.wait(0.08)
-        pcall(function()
-            handle.Size = origSize
-            handle.Transparency = 0
-        end)
+        task.wait(0.15)
 
-        task.wait(0.1)
         local killed = (not hum) or (not hum.Parent) or (hum.Health <= 0)
         return killed
     end
@@ -1613,12 +1608,14 @@ if currentMapID == _A then
                                 if not MM2_KillAllActive then break end
                                 myChar = LocalPlayer.Character
                                 myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                                if myHRP then
-                                    MM2_DoKill(p, myHRP)
+                                local myHum2 = myChar and myChar:FindFirstChildOfClass("Humanoid")
+                                -- تأكد إنا أحياء قبل كل قتل
+                                if myHRP and myHum2 and myHum2.Health > 0 then
+                                    pcall(function() MM2_DoKill(p, myHRP) end)
                                 end
-                                task.wait(0.2)
+                                task.wait(0.5) -- wait أطول لمنع الكراش
                             end
-                            task.wait(0.5)
+                            task.wait(0.8)
                         end
                     end
                 end
@@ -1804,6 +1801,262 @@ if currentMapID == _A then
         end
     })
 
+    -- ══════════════════════════════════════════════
+    -- 💰 COINS TAB
+    -- ══════════════════════════════════════════════
+    Tabs.Coins:AddSection("💰 " .. (Lang=="AR" and "تجميع الفلوس" or "Coin Collection"))
+
+    -- Auto Farm Coins (الطريقة الحقيقية: workspace.CoinContainer.Coin_Server)
+    local MM2_AutoFarmActive_C = false
+    local function MM2_AutoFarmCoin()
+        local myChar = LocalPlayer.Character
+        if not myChar then return end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        local CoinContainer = workspace:FindFirstChild("CoinContainer", true)
+        if not CoinContainer then return end
+        local coin = CoinContainer:FindFirstChild("Coin_Server")
+        if not coin then return end
+        local _safety = 0
+        repeat
+            if not MM2_AutoFarmActive_C then break end
+            _safety = _safety + 1
+            if _safety > 200 then break end
+            myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
+                         * CFrame.Angles(0, 0, math.rad(180))
+            RunService.Stepped:Wait()
+        until not coin:IsDescendantOf(workspace) or coin.Name ~= "Coin_Server"
+        task.wait(0.2)
+    end
+    Tabs.Coins:AddToggle("MM2_CoinFarm", {
+        Title = "💰 " .. (Lang=="AR" and "Auto Farm كوينز (تلقائي)" or "Auto Farm Coins"),
+        Description = Lang=="AR" and "يجمع الكوينز تلقائياً" or "Auto collect all coins",
+        Default = false
+    }):OnChanged(function()
+        MM2_AutoFarmActive_C = Options.MM2_CoinFarm.Value
+        if MM2_AutoFarmActive_C then
+            Notify("💰", Lang=="AR" and "Auto Farm مفعل!" or "Auto Farm ON!")
+            task.spawn(function()
+                while MM2_AutoFarmActive_C do
+                    local myChar = LocalPlayer.Character
+                    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+                    if myChar and myHum and myHum.Health > 0 then
+                        pcall(MM2_AutoFarmCoin)
+                    end
+                    task.wait(0.15)
+                end
+                Notify("💰", Lang=="AR" and "Auto Farm أوقف" or "Auto Farm OFF")
+            end)
+        end
+    end)
+
+    -- Coin ESP (يضوي الكوينز)
+    local _coinESPMap = {}
+    Tabs.Coins:AddToggle("MM2_CoinESPNew", {
+        Title = "💰 " .. (Lang=="AR" and "كشف الكوينز (ESP)" or "Coin ESP"),
+        Description = Lang=="AR" and "يضوي كل الكوينز بلون ذهبي" or "Highlight all coins (gold)",
+        Default = false
+    }):OnChanged(function()
+        local on = Options.MM2_CoinESPNew.Value
+        if on then
+            local cc = workspace:FindFirstChild("CoinContainer", true)
+            if cc then
+                for _, coin in pairs(cc:GetChildren()) do
+                    if coin.Name == "Coin_Server" and not _coinESPMap[coin] then
+                        local h = Instance.new("Highlight")
+                        h.FillColor = Color3.fromRGB(255, 215, 0)
+                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        h.FillTransparency = 0.3
+                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        h.Parent = coin
+                        _coinESPMap[coin] = h
+                    end
+                end
+            end
+            Notify("💰", "Coin ESP ON")
+        else
+            for _, h in pairs(_coinESPMap) do if h then pcall(function() h:Destroy() end) end end
+            _coinESPMap = {}
+            Notify("💰", "Coin ESP OFF")
+        end
+    end)
+
+    -- Teleport to nearest coin
+    Tabs.Coins:AddButton({
+        Title = "💰 " .. (Lang=="AR" and "انتقل لأقرب كوين" or "Teleport to Nearest Coin"),
+        Callback = function()
+            local myChar = LocalPlayer.Character
+            local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            local cc = workspace:FindFirstChild("CoinContainer", true)
+            if not cc then Notify("⚠️", Lang=="AR" and "ما في كوينز" or "No coins found") return end
+            local closest, minDist = nil, math.huge
+            for _, coin in pairs(cc:GetChildren()) do
+                if coin.Name == "Coin_Server" then
+                    local d = (coin.Position - myHRP.Position).Magnitude
+                    if d < minDist then minDist = d closest = coin end
+                end
+            end
+            if closest then
+                myHRP.CFrame = CFrame.new(closest.Position + Vector3.new(0, 3, 0))
+                Notify("💰", (Lang=="AR" and "انتقلت! المسافة كانت " or "Teleported! Was ")
+                              .. math.floor(minDist) .. "m")
+            else
+                Notify("⚠️", Lang=="AR" and "ما في كوينز" or "No coins")
+            end
+        end
+    })
+
+    -- Collect all coins instantly
+    Tabs.Coins:AddButton({
+        Title = "⚡ " .. (Lang=="AR" and "جمع كل الكوينز فوراً" or "Collect ALL Coins NOW"),
+        Description = Lang=="AR" and "يلف على كل كوين بسرعة" or "Fast collect all visible coins",
+        Callback = function()
+            local myChar = LocalPlayer.Character
+            local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            local cc = workspace:FindFirstChild("CoinContainer", true)
+            if not cc then return end
+            local count = 0
+            local origPos = myHRP.CFrame
+            for _, coin in pairs(cc:GetChildren()) do
+                if coin.Name == "Coin_Server" and coin:IsDescendantOf(workspace) then
+                    pcall(function()
+                        myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
+                                     * CFrame.Angles(0, 0, math.rad(180))
+                        task.wait(0.1)
+                        count = count + 1
+                    end)
+                end
+            end
+            pcall(function() myHRP.CFrame = origPos end)
+            Notify("⚡", (Lang=="AR" and "جمعت " or "Collected ") .. count
+                          .. (Lang=="AR" and " كوين!" or " coins!"))
+        end
+    })
+
+    -- ══════════════════════════════════════════════
+    -- 🚀 TELEPORT TAB
+    -- ══════════════════════════════════════════════
+    Tabs.Teleport:AddSection("🎯 " .. (Lang=="AR" and "نقل للأدوار" or "Role Teleports"))
+
+    Tabs.Teleport:AddButton({
+        Title = "🔫 " .. L("tp_sheriff"),
+        Description = Lang=="AR" and "ينتقل للشريف" or "Teleport to Sheriff",
+        Callback = function()
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and getPlayerRole(plr) == "SHERIFF" then
+                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+                       and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame =
+                            plr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                        Notify("✅", L("notif_sheriff")) return
+                    end
+                end
+            end
+            Notify("⚠️", L("notif_no_sheriff"))
+        end
+    })
+
+    Tabs.Teleport:AddButton({
+        Title = "🔪 " .. L("tp_killer"),
+        Description = Lang=="AR" and "ينتقل للقاتل" or "Teleport to Killer",
+        Callback = function()
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and getPlayerRole(plr) == "KILLER" then
+                    if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+                       and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame =
+                            plr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                        Notify("✅", L("notif_killer_tp")) return
+                    end
+                end
+            end
+            Notify("⚠️", L("notif_no_killer"))
+        end
+    })
+
+    Tabs.Teleport:AddButton({
+        Title = "🔫 " .. (Lang=="AR" and "انتقل للسلاح المرمي" or "Teleport to Dropped Gun"),
+        Description = Lang=="AR" and "ينتقل لـ GunDrop في الماب" or "Teleports to GunDrop in workspace",
+        Callback = function()
+            local myChar = LocalPlayer.Character
+            local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            local gd = workspace:FindFirstChild("GunDrop")
+            if gd then
+                myHRP.CFrame = CFrame.new(gd.Position + Vector3.new(0, 3, 0))
+                Notify("🔫", Lang=="AR" and "انتقلت للسلاح!" or "Teleported to gun!")
+            else
+                Notify("⚠️", Lang=="AR" and "ما في سلاح مرمي" or "No dropped gun")
+            end
+        end
+    })
+
+    Tabs.Teleport:AddSection("👥 " .. (Lang=="AR" and "نقل للاعبين" or "Player Teleports"))
+
+    Tabs.Teleport:AddButton({
+        Title = "👤 " .. (Lang=="AR" and "انتقل لأقرب لاعب" or "Teleport to Nearest Player"),
+        Callback = function()
+            local myChar = LocalPlayer.Character
+            local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            local closest, minDist = nil, math.huge
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                    if d < minDist then minDist = d closest = p end
+                end
+            end
+            if closest then
+                myHRP.CFrame = closest.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                Notify("👤", Lang=="AR" and ("انتقلت إلى " .. closest.Name) or ("Teleported to " .. closest.Name))
+            else
+                Notify("⚠️", Lang=="AR" and "ما في لاعبين" or "No players")
+            end
+        end
+    })
+
+    -- Teleport to specific player (dropdown)
+    local TP_SelectedTarget = nil
+    local function _getTpNames()
+        local names = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then table.insert(names, p.Name) end
+        end
+        if #names == 0 then names = {"-- --"} end
+        return names
+    end
+    local _tpNames = _getTpNames()
+    local TP_PlayerDrop = Tabs.Teleport:AddDropdown("MM2_TpPlayer", {
+        Title = "🎯 " .. (Lang=="AR" and "اختر لاعب" or "Select Player"),
+        Values = _tpNames, Multi = false, Default = _tpNames[1]
+    })
+    TP_PlayerDrop:OnChanged(function(v)
+        if v and v ~= "-- --" then TP_SelectedTarget = v end
+    end)
+    Tabs.Teleport:AddButton({
+        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh List"),
+        Callback = function()
+            local n = _getTpNames()
+            pcall(function() TP_PlayerDrop:SetValues(n) end)
+            Notify("🔄", "OK")
+        end
+    })
+    Tabs.Teleport:AddButton({
+        Title = "🚀 " .. (Lang=="AR" and "انتقل للاعب المختار" or "Teleport to Selected"),
+        Callback = function()
+            if not TP_SelectedTarget then return end
+            local t = Players:FindFirstChild(TP_SelectedTarget)
+            if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+               and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame =
+                    t.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                Notify("🚀", "→ " .. t.Name)
+            end
+        end
+    })
+
     -- ── PLAYER ────────────────────────────────────
     Tabs.Player:AddSection("📊 حركة اللاعب")
     Tabs.Player:AddSlider("MM2_WalkSpeed", {
@@ -1981,45 +2234,7 @@ if currentMapID == _A then
     -- Coins ESP
     local _coinsESP = {}
     local _coinsESPActive = false
-    Tabs.Esp:AddSection("💰 " .. (Lang=="AR" and "كشف العملات" or "Coin ESP"))
-    Tabs.Esp:AddToggle("MM2_CoinESP", {
-        Title = "💰 " .. (Lang=="AR" and "كشف الكوينز" or "Coin ESP"),
-        Description = Lang=="AR" and "يضوي كل الكوينز في الماب" or "Highlights all coins on map",
-        Default = false
-    }):OnChanged(function()
-        _coinsESPActive = Options.MM2_CoinESP.Value
-        if _coinsESPActive then
-            local function highlightCoin(coin)
-                if _coinsESP[coin] then return end
-                local h = Instance.new("Highlight")
-                h.FillColor = Color3.fromRGB(255,215,0)
-                h.OutlineColor = Color3.fromRGB(255,255,255)
-                h.FillTransparency = 0.4
-                h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                h.Parent = coin
-                _coinsESP[coin] = h
-            end
-            -- ابحث في CoinContainer
-            local cc = workspace:FindFirstChild("CoinContainer", true)
-            if cc then
-                for _, coin in pairs(cc:GetChildren()) do
-                    if coin.Name == "Coin_Server" then highlightCoin(coin) end
-                end
-                cc.ChildAdded:Connect(function(coin)
-                    if _coinsESPActive and coin.Name == "Coin_Server" then
-                        highlightCoin(coin)
-                    end
-                end)
-            end
-            Notify("💰", Lang=="AR" and "Coin ESP مفعل!" or "Coin ESP ON!")
-        else
-            for _, h in pairs(_coinsESP) do
-                if h then h:Destroy() end
-            end
-            _coinsESP = {}
-        end
-    end)
-
+        -- (Coin ESP moved to Coins tab)
     -- Gun ESP (يضوي GunDrop)
     local _gunESPObj = nil
     Tabs.Esp:AddToggle("MM2_GunESP", {
@@ -2074,61 +2289,7 @@ if currentMapID == _A then
         Values = {"Rose","Dark","Darker","Light","Aqua","Amethyst"},
         Multi = false, Default = "Rose"
     })
-    -- ── Auto Farm Coins (طريقة حقيقية من سورس مفتوح) ────
-    Tabs.Misc:AddSection("💰 " .. (Lang=="AR" and "Auto Farm" or "Auto Farm"))
-    local MM2_AutoFarmActive = false
-
-    local function MM2_AutoFarm()
-        local myChar = LocalPlayer.Character
-        if not myChar then return end
-        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-
-        -- البحث في CoinContainer (الطريقة الحقيقية في MM2)
-        local CoinContainer = workspace:FindFirstChild("CoinContainer", true)
-        if not CoinContainer then return end
-
-        local coin = CoinContainer:FindFirstChild("Coin_Server")
-        if not coin then return end
-
-        -- انتقل للكوين
-        local savedPos = myHRP.CFrame
-        repeat
-            if not MM2_AutoFarmActive then break end
-            -- انتقل فوق الكوين بـ 2.5 وحدة أسفل (الطريقة الصحيحة)
-            myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
-                         * CFrame.Angles(0, 0, math.rad(180))
-            RunService.Stepped:Wait()
-        until not coin:IsDescendantOf(workspace) or coin.Name ~= "Coin_Server" or not MM2_AutoFarmActive
-        task.wait(0.3)
-    end
-
-    local MM2_AutoFarmToggle = Tabs.Misc:AddToggle("MM2_AutoFarm", {
-        Title = "💰 " .. (Lang=="AR" and "Auto Farm كوينز (تلقائي)" or "Auto Farm Coins"),
-        Description = Lang=="AR" and "يجمع الكوينز تلقائياً — طريقة حقيقية" or "Real coin farm method — CoinContainer",
-        Default = false
-    })
-    MM2_AutoFarmToggle:OnChanged(function()
-        MM2_AutoFarmActive = Options.MM2_AutoFarm.Value
-        if MM2_AutoFarmActive then
-            Notify("💰", Lang=="AR" and "Auto Farm مفعل!" or "Auto Farm ON!")
-            task.spawn(function()
-                while MM2_AutoFarmActive do
-                    local myChar = LocalPlayer.Character
-                    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                    -- تأكد أنا حي وشخصيتي موجودة
-                    if myChar and myHum and myHum.Health > 0 then
-                        MM2_AutoFarm()
-                    end
-                    task.wait(0.1)
-                end
-                Notify("💰", Lang=="AR" and "Auto Farm أوقف" or "Auto Farm OFF")
-            end)
-        else
-            Notify("💰", Lang=="AR" and "Auto Farm أوقف" or "Auto Farm OFF")
-        end
-    end)
-
+        -- (Auto Farm moved to Coins tab)
     -- ── Auto Callout (إعلان القاتل في الشات) ─────────────
     Tabs.Misc:AddSection("📢 " .. (Lang=="AR" and "Callout" or "Callout"))
     local MM2_CalloutMsg = "Murderer is ${murderer} | Sheriff is ${sheriff}"
