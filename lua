@@ -1168,7 +1168,7 @@ if currentMapID == _A then
         Home     = Window:AddTab({ Title = L("home"),    Icon = "home" }),
         Esp      = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
         Combat   = Window:AddTab({ Title = L("combat"),  Icon = "crosshair" }),
-        Coins    = Window:AddTab({ Title = (Lang=="AR" and "الفلوس" or "Coins"),     Icon = "coins" }),
+        Coins    = Window:AddTab({ Title = (Lang=="AR" and "الفلوس" or "Coins"),     Icon = "dollar-sign" }),
         Teleport = Window:AddTab({ Title = (Lang=="AR" and "التنقل" or "Teleport"),  Icon = "map-pin" }),
         Player   = Window:AddTab({ Title = L("player"),  Icon = "user" }),
         World    = Window:AddTab({ Title = L("world"),   Icon = "globe" }),
@@ -3777,7 +3777,7 @@ elseif currentMapID == _C then
     -- ── TABS TBT ───────────────────────────────────
     local Tabs = {
         Home    = Window:AddTab({ Title = L("home"),    Icon = "home" }),
-        Bomb    = Window:AddTab({ Title = "💣 Bomb",    Icon = "bomb" }),
+        Bomb    = Window:AddTab({ Title = "💣 Bomb",    Icon = "alert-triangle" }),
         ESP     = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
         Player  = Window:AddTab({ Title = L("player"),  Icon = "user" }),
         Visual  = Window:AddTab({ Title = L("visual"),  Icon = "sparkles" }),
@@ -4366,10 +4366,4 @@ end
 -- ══════════════════════════════════════════════
 -- Select First Tab
 -- ══════════════════════════════════════════════
--- نأخر اختيار التاب لإعطاء Fluent وقت للبناء الكامل
-task.wait(0.5)
 pcall(function() if Window then Window:SelectTab(1) end end)
--- إعادة اختيار بعد ثانية لضمان عرض كامل
-task.delay(1.2, function()
-    pcall(function() if Window then Window:SelectTab(1) end end)
-end)
