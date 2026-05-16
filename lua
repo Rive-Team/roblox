@@ -1914,34 +1914,64 @@ if currentMapID == _A then
         end
     end)
 
-    -- Coin ESP (يضوي الكوينز)
+    -- Coin ESP (يضوي الكوينز - يفحص باستمرار)
     local _coinESPMap = {}
+    local _coinESPActive = false
     Tabs.Coins:AddToggle("MM2_CoinESPNew", {
         Title = "💰 " .. (Lang=="AR" and "كشف الكوينز (ESP)" or "Coin ESP"),
         Description = Lang=="AR" and "يضوي كل الكوينز بلون ذهبي" or "Highlight all coins (gold)",
         Default = false
     }):OnChanged(function()
-        local on = Options.MM2_CoinESPNew.Value
-        if on then
-            local cc = workspace:FindFirstChild("CoinContainer", true)
-            if cc then
-                for _, coin in pairs(cc:GetChildren()) do
-                    if coin.Name == "Coin_Server" and not _coinESPMap[coin] then
-                        local h = Instance.new("Highlight")
-                        h.FillColor = Color3.fromRGB(255, 215, 0)
-                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
-                        h.FillTransparency = 0.3
-                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        h.Parent = coin
-                        _coinESPMap[coin] = h
-                    end
+        _coinESPActive = Options.MM2_CoinESPNew.Value
+        if _coinESPActive then
+            Notify("💰", Lang=="AR" and "Coin ESP مفعل!" or "Coin ESP ON")
+            task.spawn(function()
+                while _coinESPActive do
+                    pcall(function()
+                        -- ابحث في كل الـ workspace عن الكوينز (مش بس CoinContainer)
+                        local function findCoins(parent, depth)
+                            depth = depth or 0
+                            if depth > 4 then return end
+                            for _, child in pairs(parent:GetChildren()) do
+                                if child:IsA("BasePart") then
+                                    local cn = child.Name
+                                    if (cn == "Coin" or cn == "Coin_Server" or cn:lower():find("coin"))
+                                       and not _coinESPMap[child] then
+                                        local h = Instance.new("Highlight")
+                                        h.Name = "BoSqr_CoinHL"
+                                        h.FillColor = Color3.fromRGB(255, 215, 0)
+                                        h.OutlineColor = Color3.fromRGB(255, 255, 100)
+                                        h.FillTransparency = 0.2
+                                        h.OutlineTransparency = 0
+                                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                        h.Parent = child
+                                        _coinESPMap[child] = h
+                                    end
+                                end
+                                if child:IsA("Model") or child:IsA("Folder")
+                                   or (child:IsA("BasePart") == false and child:GetChildren()[1]) then
+                                    findCoins(child, depth + 1)
+                                end
+                            end
+                        end
+                        findCoins(workspace, 0)
+                        -- نظف الـ highlights القديمة لأشياء انحذفت
+                        for coin, h in pairs(_coinESPMap) do
+                            if not coin.Parent or not coin:IsDescendantOf(workspace) then
+                                pcall(function() h:Destroy() end)
+                                _coinESPMap[coin] = nil
+                            end
+                        end
+                    end)
+                    task.wait(1) -- فحص كل ثانية
                 end
-            end
-            Notify("💰", "Coin ESP ON")
+                -- cleanup عند الإيقاف
+                for _, h in pairs(_coinESPMap) do if h then pcall(function() h:Destroy() end) end end
+                _coinESPMap = {}
+            end)
         else
-            for _, h in pairs(_coinESPMap) do if h then pcall(function() h:Destroy() end) end end
-            _coinESPMap = {}
-            Notify("💰", "Coin ESP OFF")
+            _coinESPActive = false
+            Notify("💰", Lang=="AR" and "Coin ESP أوقف" or "Coin ESP OFF")
         end
     end)
 
@@ -3851,157 +3881,156 @@ elseif currentMapID == _C then
     end)
 
     -- Anti-Bomb (يدفع القنبلة بعيد)
-    -- 🛡️ Anti-Bomb: طريقة جديدة بدون تجميد اللاعب
-    -- ✅ تفحص شخصيتك كل 0.1 ثانية
-    -- ✅ لو حصلت قنبلة، ترميها فوراً عبر firetouchinterest على أقرب لاعب
-    -- ✅ ما تلمس Humanoid أبداً (يبقى يتحرك طبيعي)
+    -- 🛡️ Anti-Bomb V3 — الحماية الحقيقية
+    -- 3 طبقات: 1) رفض استلام، 2) رمي فوري، 3) نقل لأقرب لاعب
     Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (نقل تلقائي)" or "Anti Bomb (Auto Pass)"),
-        Description = Lang=="AR" and "ينقل القنبلة فوراً لأقرب لاعب" or "Auto-passes bomb to nearest player",
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (رفض القنبلة)" or "Anti Bomb (Reject)"),
+        Description = Lang=="AR" and "يرفض استلام القنبلة + يرميها لو وصلت" or "Reject bomb + drop it instantly",
         Default = false
     }):OnChanged(function()
         TBT_AntiBombActive = Options.TBT_AntiBomb.Value
         if TBT_AntiBombActive then
             Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
+            -- Layer 1: مراقبة الـ Character و Backpack
+            -- لو دخلت قنبلة، احذفها فوراً (Parent = nil)
             task.spawn(function()
                 while TBT_AntiBombActive do
                     pcall(function()
                         local c = Player.Character
+                        local bp = Player:FindFirstChildOfClass("Backpack")
+                        local checked = {}
+
+                        -- شيك Character
                         if c then
-                            -- فحص: هل عندنا قنبلة؟
-                            local bomb = nil
                             for _, t in pairs(c:GetChildren()) do
                                 if t:IsA("Tool") then
                                     local n = t.Name:lower()
-                                    if n:find("bomb") or n:find("tnt") or n:find("explosive") then
-                                        bomb = t
-                                        break
+                                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
+                                        table.insert(checked, t)
                                     end
                                 end
                             end
-                            if bomb then
-                                -- وجدنا قنبلة! ابحث عن أقرب لاعب
-                                local myHRP = c:FindFirstChild("HumanoidRootPart")
-                                if myHRP then
-                                    local closest, minDist = nil, math.huge
-                                    for _, p in pairs(Players:GetPlayers()) do
-                                        if p ~= Player and p.Character
-                                           and p.Character:FindFirstChild("HumanoidRootPart") then
-                                            local hum2 = p.Character:FindFirstChildOfClass("Humanoid")
-                                            if hum2 and hum2.Health > 0 then
-                                                local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                                                if d < minDist then
-                                                    minDist = d
-                                                    closest = p
-                                                end
+                        end
+                        -- شيك Backpack
+                        if bp then
+                            for _, t in pairs(bp:GetChildren()) do
+                                if t:IsA("Tool") then
+                                    local n = t.Name:lower()
+                                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
+                                        table.insert(checked, t)
+                                    end
+                                end
+                            end
+                        end
+
+                        -- معالجة كل قنبلة
+                        for _, bomb in pairs(checked) do
+                            local myHRP = c and c:FindFirstChild("HumanoidRootPart")
+                            if myHRP then
+                                -- إيجاد أقرب لاعب
+                                local closest, minDist = nil, math.huge
+                                for _, p in pairs(Players:GetPlayers()) do
+                                    if p ~= Player and p.Character
+                                       and p.Character:FindFirstChild("HumanoidRootPart") then
+                                        local h2 = p.Character:FindFirstChildOfClass("Humanoid")
+                                        if h2 and h2.Health > 0 then
+                                            local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                                            if d < minDist then minDist = d closest = p end
+                                        end
+                                    end
+                                end
+
+                                if closest then
+                                    -- 1. نقل الـ Parent مباشرة
+                                    pcall(function() bomb.Parent = closest.Character end)
+                                    task.wait(0.05)
+
+                                    -- 2. firetouchinterest على الهدف
+                                    local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
+                                    local h = bomb:FindFirstChild("Handle")
+                                    if tHRP and h then
+                                        pcall(function()
+                                            firetouchinterest(tHRP, h, 1)
+                                            firetouchinterest(tHRP, h, 0)
+                                        end)
+                                    end
+
+                                    -- 3. أطلق أي Remote متعلق بالقنبلة
+                                    for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                                        if re:IsA("RemoteEvent") or re:IsA("RemoteFunction") then
+                                            local rn = re.Name:lower()
+                                            if rn:find("bomb") or rn:find("transfer") or rn:find("pass") or rn:find("give") then
+                                                pcall(function()
+                                                    if re:IsA("RemoteEvent") then
+                                                        re:FireServer(closest)
+                                                        re:FireServer(closest.Character)
+                                                    else
+                                                        re:InvokeServer(closest)
+                                                    end
+                                                end)
                                             end
                                         end
                                     end
-                                    if closest and closest.Character then
-                                        local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
-                                        local handle = bomb:FindFirstChild("Handle")
-                                        if tHRP and handle then
-                                            -- 1. نقل القنبلة عبر firetouchinterest (بدون تيليبورت)
-                                            pcall(function()
-                                                firetouchinterest(tHRP, handle, 1)
-                                                firetouchinterest(tHRP, handle, 0)
-                                            end)
-                                            -- 2. لو firetouch ما اشتغل، parent fallback
-                                            task.wait(0.1)
-                                            if bomb.Parent == c then
-                                                pcall(function()
-                                                    bomb.Parent = closest.Character
-                                                end)
-                                            end
-                                            -- 3. أطلق الـ remotes اللي تخص القنبلة
-                                            for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-                                                if re:IsA("RemoteEvent") then
-                                                    local rn = re.Name:lower()
-                                                    if rn:find("bomb") or rn:find("transfer") or rn:find("pass") then
-                                                        pcall(function() re:FireServer(closest) end)
-                                                    end
-                                                end
-                                            end
-                                        end
+                                else
+                                    -- لا يوجد لاعب قريب، ارمي القنبلة فقط
+                                    pcall(function() bomb.Parent = workspace end)
+                                    local h = bomb:FindFirstChild("Handle")
+                                    if h then
+                                        pcall(function()
+                                            h.Velocity = Vector3.new(
+                                                math.random(-300, 300),
+                                                200,
+                                                math.random(-300, 300)
+                                            )
+                                        end)
                                     end
                                 end
                             end
                         end
                     end)
-                    task.wait(0.15)
+                    task.wait(0.05) -- سرعة عالية
                 end
+            end)
+
+            -- Layer 2: هوك على __namecall لرفض FireServer للقنبلة
+            task.spawn(function()
+                pcall(function()
+                    if _getrawmetatable and _hookmetamethod then
+                        local mt = _getrawmetatable(game)
+                        if mt and not _G.BoSqr_BombHooked then
+                            _G.BoSqr_BombHooked = true
+                            _setreadonly(mt, false)
+                            local origNamecall = mt.__namecall
+                            mt.__namecall = _newcclosure(function(self, ...)
+                                if TBT_AntiBombActive then
+                                    local method = (getnamecallmethod and getnamecallmethod()) or ""
+                                    if method == "FireServer" or method == "InvokeServer" then
+                                        local n = (self.Name or ""):lower()
+                                        -- لو remote اسمه يحتوي على bomb/pass/give و الـ args تشير إلينا، نمنعه
+                                        if n:find("bomb") or n:find("pass") or n:find("give") then
+                                            local args = {...}
+                                            for _, a in pairs(args) do
+                                                if a == Player or a == Player.Character then
+                                                    -- محاولة إعطاؤنا القنبلة! نرفض
+                                                    return nil
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                                return origNamecall(self, ...)
+                            end)
+                            _setreadonly(mt, true)
+                        end
+                    end
+                end)
             end)
         else
             Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
         end
     end)
 
-    -- 🚨 Anti-Bomb Stealth Mode (يستخدم teleport hidden)
-    Tabs.Bomb:AddToggle("TBT_AntiBombStealth", {
-        Title = "👻 " .. (Lang=="AR" and "Anti Bomb (تيلي خفي)" or "Anti Bomb (Stealth TP)"),
-        Description = Lang=="AR" and "يتيليبورت لأقرب لاعب لما يصلك القنبلة" or "Teleport-pass when bomb received",
-        Default = false
-    }):OnChanged(function()
-        local on = Options.TBT_AntiBombStealth.Value
-        if on then
-            Notify("👻", Lang=="AR" and "Stealth Anti Bomb مفعل" or "Stealth ON")
-            task.spawn(function()
-                while Options.TBT_AntiBombStealth.Value do
-                    pcall(function()
-                        local c = Player.Character
-                        if c then
-                            local bomb = nil
-                            for _, t in pairs(c:GetChildren()) do
-                                if t:IsA("Tool") then
-                                    local n = t.Name:lower()
-                                    if n:find("bomb") or n:find("tnt") then bomb = t break end
-                                end
-                            end
-                            if bomb then
-                                local myHRP = c:FindFirstChild("HumanoidRootPart")
-                                if myHRP then
-                                    local closest, minDist = nil, math.huge
-                                    for _, p in pairs(Players:GetPlayers()) do
-                                        if p ~= Player and p.Character
-                                           and p.Character:FindFirstChild("HumanoidRootPart") then
-                                            local hum2 = p.Character:FindFirstChildOfClass("Humanoid")
-                                            if hum2 and hum2.Health > 0 then
-                                                local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                                                if d < minDist then minDist = d closest = p end
-                                            end
-                                        end
-                                    end
-                                    if closest then
-                                        local origPos = myHRP.CFrame
-                                        local tHRP = closest.Character.HumanoidRootPart
-                                        -- تيليبورت سريع (3 خطوات smooth)
-                                        for i = 1, 3 do
-                                            myHRP.CFrame = origPos:Lerp(tHRP.CFrame * CFrame.new(0,0,-1.5), i/3)
-                                            task.wait(0.02)
-                                        end
-                                        -- نقل القنبلة
-                                        pcall(function() bomb.Parent = closest.Character end)
-                                        task.wait(0.1)
-                                        -- ارجع
-                                        for i = 1, 3 do
-                                            myHRP.CFrame = origPos:Lerp(origPos, i/3)
-                                            task.wait(0.02)
-                                        end
-                                        myHRP.CFrame = origPos
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.1)
-                end
-            end)
-        else
-            Notify("👻", Lang=="AR" and "Stealth أوقف" or "Stealth OFF")
-        end
-    end)
-
-    -- ── ESP ──────────────────────────────────────
+        -- ── ESP ──────────────────────────────────────
     Tabs.ESP:AddSection("👁️ " .. L("esp"))
     Tabs.ESP:AddToggle("TBT_ESP", {
         Title = "👁️ " .. (Lang=="AR" and "كشف اللاعبين (ESP)" or "Players ESP"),
@@ -4337,4 +4366,10 @@ end
 -- ══════════════════════════════════════════════
 -- Select First Tab
 -- ══════════════════════════════════════════════
+-- نأخر اختيار التاب لإعطاء Fluent وقت للبناء الكامل
+task.wait(0.5)
 pcall(function() if Window then Window:SelectTab(1) end end)
+-- إعادة اختيار بعد ثانية لضمان عرض كامل
+task.delay(1.2, function()
+    pcall(function() if Window then Window:SelectTab(1) end end)
+end)
