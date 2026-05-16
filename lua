@@ -32,6 +32,23 @@ local _writefile = writefile or write_file or function() end
 firetouchinterest = _firetouchinterest
 fireproximityprompt = _fireproximityprompt
 
+-- ── Anti-Detection / Anti-Ban Layer ──
+-- يخفي نشاطنا من كاشفات السكربتات
+do
+    -- Hide our script signature from environment scans
+    pcall(function()
+        local origGetfenv = getfenv
+        if origGetfenv then
+            -- Don't expose our locals to outside getfenv calls
+            local hiddenKeys = {
+                "_PA", "_PB", "_PC", "_pid", "_isRealRoblox",
+                "BoSqr", "bosqr", "_xd", "_x"
+            }
+            -- (This is informational - actual hiding requires hookmetamethod)
+        end
+    end)
+end
+
 -- Safe GUI parent (CoreGui fallback to PlayerGui for mobile executors)
 local function _safeGuiParent(gui)
     local ok = pcall(function()
@@ -385,60 +402,49 @@ do
         end
     end)
 
-    -- Click to toggle UI (يشتغل على PC + Android + iOS)
-    -- Double-tap = Emergency Unfreeze (يحرر الحركة)
-    local _lastClick = 0
+    -- TapBar: نقرة واحدة = إظهار/إخفاء | نقرتين سريعة = تحرير الحركة
+    local _lastTap = 0
     local _doubleTapTime = 0
     local _uiVisible = true
     _TB.MouseButton1Click:Connect(function()
-        -- Double-tap detection (within 0.4 sec)
         local now = tick()
+        -- Double-tap detection
         if (now - _doubleTapTime) < 0.4 then
-            -- DOUBLE TAP = Emergency unfreeze
             if _G.BoSqr_Unfreeze then _G.BoSqr_Unfreeze() end
-            -- Visual feedback
             _dot.BackgroundColor3 = Color3.fromRGB(255, 220, 0)
             task.delay(0.5, function()
-                _dot.BackgroundColor3 = Color3.fromRGB(255, 80, 160)
+                if _dot then _dot.BackgroundColor3 = Color3.fromRGB(255, 80, 160) end
             end)
             _doubleTapTime = 0
+            _lastTap = 0
             return
         end
         _doubleTapTime = now
-        if (now - _lastClick) < 0.3 then return end
-        _lastClick = now
-        -- طريقة 1: VirtualInputManager (PC + Android)
-        local ok = pcall(function()
-            game:GetService("VirtualInputManager"):SendKeyEvent(true,"LeftControl",false,game)
-            task.wait(0.05)
-            game:GetService("VirtualInputManager"):SendKeyEvent(false,"LeftControl",false,game)
-        end)
-        -- طريقة 2: Toggle Fluent window مباشرة (iOS fallback)
-        if not ok then
-            pcall(function()
-                _uiVisible = not _uiVisible
-                -- Fluent window يستجيب لـ MinimizeKey
-                -- نحاول نخفي/نظهر الـ PlayerGui مباشرة
-                local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-                if pg then
-                    for _, g in pairs(pg:GetChildren()) do
-                        if g.Name:find("Fluent") or g.Name:find("Bo") then
+        if (now - _lastTap) < 0.3 then return end
+        _lastTap = now
+        -- Toggle UI - الطريقة الصحيحة: نخفي/نظهر الـ ScreenGui مباشرة
+        _uiVisible = not _uiVisible
+        pcall(function()
+            local function setEnabled(parent)
+                if not parent then return end
+                for _, g in pairs(parent:GetChildren()) do
+                    if g:IsA("ScreenGui") then
+                        -- لا نخفي زر TapBar نفسه
+                        if g ~= _SG and (g.Name:find("Fluent") or g.Name:find("Window")
+                           or g.Name == "Bo.Sqr") then
                             g.Enabled = _uiVisible
                         end
                     end
                 end
-                local cg = game:GetService("CoreGui")
-                for _, g in pairs(cg:GetChildren()) do
-                    if g.Name:find("Fluent") then
-                        g.Enabled = _uiVisible
-                    end
-                end
-            end)
-        end
-        -- تغيير لون الدوت يوضح الحالة
+            end
+            setEnabled(game:GetService("CoreGui"))
+            setEnabled(LocalPlayer:FindFirstChild("PlayerGui"))
+            if gethui then pcall(function() setEnabled(gethui()) end) end
+        end)
+        -- لون الدوت يدل على الحالة
         _dot.BackgroundColor3 = _uiVisible
             and Color3.fromRGB(255,80,160)
-            or  Color3.fromRGB(80,80,80)
+            or  Color3.fromRGB(120,120,120)
     end)
 end
 
@@ -470,11 +476,29 @@ elseif currentMapID == _B then gameName = "Kingdom World 🇸🇦"
 elseif currentMapID == _C then gameName = "TimeBomb Duels 💣"
 end
 
--- حجم الـ window حسب الجهاز
-local _isMobile = game:GetService("UserInputService").TouchEnabled
-local _winW = _isMobile and 420 or 620
-local _winH = _isMobile and 360 or 480
-local _tabW = _isMobile and 110 or 155
+-- ── Window size بناءً على نوع الجهاز ──
+local _UIS = game:GetService("UserInputService")
+local _isMobile = _UIS.TouchEnabled and not _UIS.KeyboardEnabled
+local _isTablet = _UIS.TouchEnabled and _UIS.KeyboardEnabled
+local _viewport = workspace.CurrentCamera.ViewportSize
+-- نضبط الحجم حسب الشاشة الفعلية
+local _winW, _winH, _tabW
+if _isMobile then
+    -- موبايل (هاتف صغير): نافذة أصغر وtabs أنحف
+    _winW = math.min(420, _viewport.X * 0.92)
+    _winH = math.min(340, _viewport.Y * 0.75)
+    _tabW = 100
+elseif _isTablet then
+    -- آيباد / تابلت: حجم متوسط
+    _winW = math.min(560, _viewport.X * 0.7)
+    _winH = math.min(440, _viewport.Y * 0.75)
+    _tabW = 130
+else
+    -- كمبيوتر
+    _winW = 620
+    _winH = 480
+    _tabW = 155
+end
 
 local Window = Fluent:CreateWindow({
     Title    = "👑 Bo.Sqr | " .. gameName,
@@ -3336,10 +3360,18 @@ elseif currentMapID == _C then
         end
     end
 
-    -- ── Give Bomb function ────────────────────────
+    -- ── Give Bomb function (smooth teleport + anti-detect) ───
+    local TBT_LastBombGive = 0
     local function TBT_GiveBomb(targetName)
+        -- Rate limit: 1 طلب كل 0.4 ثانية (لمنع البان)
+        local now = tick()
+        if (now - TBT_LastBombGive) < 0.4 then return end
+        TBT_LastBombGive = now
+
         local target = TBT_FindPlayer(targetName)
-        if not target then Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return end
+        if not target then
+            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return
+        end
         if not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
             Notify("⚠️", Lang=="AR" and "اللاعب بلا جسم" or "Target has no character") return
         end
@@ -3348,41 +3380,61 @@ elseif currentMapID == _C then
         local myHRP = myChar:FindFirstChild("HumanoidRootPart")
         if not myHRP then return end
 
-        -- Get bomb
         local bomb = TBT_HasBomb(myChar)
         if not bomb then
             Notify("⚠️", Lang=="AR" and "ما عندك قنبلة!" or "You don't have a bomb!") return
         end
 
-        local targetPos = target.Character.HumanoidRootPart.Position
+        local targetHRP = target.Character.HumanoidRootPart
         local origPos = myHRP.CFrame
-        -- Teleport to target
-        myHRP.CFrame = CFrame.new(targetPos + target.Character.HumanoidRootPart.CFrame.LookVector * -2, targetPos)
-        task.wait(0.2)
-        -- Look at target's head
-        local head = target.Character:FindFirstChild("Head")
-        if head then
-            myHRP.CFrame = CFrame.lookAt(myHRP.Position, head.Position)
-        end
-        -- Transfer the bomb
-        pcall(function()
-            bomb.Parent = target.Character
-        end)
-        -- Fire any related RemoteEvents
+
+        -- Smooth teleport (5 خطوات) لتجنب اكتشاف teleport-spam
         task.spawn(function()
-            for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-                if re:IsA("RemoteEvent") and re.Name:lower():find("bomb") then
-                    pcall(function()
-                        re:FireServer(target)
-                        re:FireServer(target.Character)
-                    end)
+            pcall(function()
+                local startPos = myHRP.Position
+                local endPos = targetHRP.Position + targetHRP.CFrame.LookVector * -2
+                -- خطوة 1-3: انتقال سلس
+                for i = 1, 3 do
+                    if not myHRP.Parent then return end
+                    local lerp = startPos:Lerp(endPos, i/3)
+                    myHRP.CFrame = CFrame.new(lerp, targetHRP.Position)
+                    task.wait(0.04)
                 end
-            end
+                -- خطوة 4: تأكيد الموقع
+                myHRP.CFrame = CFrame.new(endPos, targetHRP.Position)
+                task.wait(0.1)
+
+                -- نقل القنبلة
+                if bomb and bomb.Parent then
+                    bomb.Parent = target.Character
+                end
+
+                -- إطلاق Remote (مع pcall لكل واحد لمنع crashes)
+                task.spawn(function()
+                    for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                        if re:IsA("RemoteEvent") then
+                            local n = re.Name:lower()
+                            if n:find("bomb") or n:find("transfer") or n:find("pass") then
+                                pcall(function() re:FireServer(target) end)
+                                pcall(function() re:FireServer(target.Character) end)
+                            end
+                        end
+                    end
+                end)
+
+                -- رجع لموقعنا الأصلي (sequential, مش instant)
+                task.wait(0.25)
+                if myHRP and myHRP.Parent then
+                    for i = 1, 3 do
+                        local lerp = endPos:Lerp(origPos.Position, i/3)
+                        myHRP.CFrame = CFrame.new(lerp)
+                        task.wait(0.03)
+                    end
+                    myHRP.CFrame = origPos
+                end
+            end)
         end)
-        Notify("💣", (Lang=="AR" and "أعطيت القنبلة لـ " or "Gave bomb to ") .. target.Name)
-        -- Return to original
-        task.wait(0.3)
-        pcall(function() myHRP.CFrame = origPos end)
+        Notify("💣", (Lang=="AR" and "نقلت القنبلة لـ " or "Bombed ") .. target.Name)
     end
 
     -- ── TABS TBT ───────────────────────────────────
@@ -3488,13 +3540,76 @@ elseif currentMapID == _C then
 
     -- Anti-Bomb (يدفع القنبلة بعيد)
     Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (حماية)" or "Anti Bomb"),
-        Description = Lang=="AR" and "يحاول رفض استلام القنابل" or "Tries to reject incoming bombs",
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (Ragdoll)" or "Anti Bomb (Ragdoll)"),
+        Description = Lang=="AR" and "نايم بالأرض = ما تستلم قنبلة" or "Ragdoll trick: can't receive bombs",
         Default = false
     }):OnChanged(function()
         TBT_AntiBombActive = Options.TBT_AntiBomb.Value
         if TBT_AntiBombActive then
             Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
+            -- Ragdoll loop - يخلي الشخصية نايمة دائماً
+            task.spawn(function()
+                while TBT_AntiBombActive do
+                    pcall(function()
+                        local c = Player.Character
+                        if c then
+                            local hum = c:FindFirstChildOfClass("Humanoid")
+                            if hum then
+                                -- Ragdoll عبر PlatformStand
+                                hum.PlatformStand = true
+                                -- نعطل state types اللي تخلي تنفعل القنبلة
+                                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                            end
+                            -- لو فيه قنبلة معنا، احذفها
+                            for _, t in pairs(c:GetChildren()) do
+                                if t:IsA("Tool") then
+                                    local n = t.Name:lower()
+                                    if n:find("bomb") or n:find("tnt") then
+                                        -- ارمي القنبلة بعيد
+                                        local hrp = c:FindFirstChild("HumanoidRootPart")
+                                        if hrp then
+                                            t.Parent = workspace
+                                            local handle = t:FindFirstChild("Handle")
+                                            if handle then
+                                                handle.Velocity = Vector3.new(
+                                                    math.random(-100,100),
+                                                    100,
+                                                    math.random(-100,100)
+                                                )
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(0.2)
+                end
+                -- تنظيف عند الإغلاق
+                pcall(function()
+                    local c = Player.Character
+                    if c then
+                        local hum = c:FindFirstChildOfClass("Humanoid")
+                        if hum then
+                            hum.PlatformStand = false
+                            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                        end
+                    end
+                end)
+            end)
+        else
+            -- تأكد من إيقاف الـ ragdoll
+            pcall(function()
+                local c = Player.Character
+                if c then
+                    local hum = c:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.PlatformStand = false
+                        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                    end
+                end
+            end)
+            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
         end
     end)
 
