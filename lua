@@ -413,93 +413,161 @@ local Window = Fluent:CreateWindow({
 local Options = Fluent.Options
 
 -- ═══════════════════════════════════════════════
--- 🔵 Tap Bar (يفتح ويغلق الواجهة)
+-- 🔵 Rive-Style Floating Button (أسطوري + سموث)
 -- ═══════════════════════════════════════════════
 do
     local UIS = game:GetService("UserInputService")
+    local TweenService = game:GetService("TweenService")
+    local RunService = game:GetService("RunService")
+
     local _SG = Instance.new("ScreenGui")
-    _SG.Name = "BoSqrTap"
+    _SG.Name = "BoSqrRiveTap"
     _SG.ResetOnSpawn = false
     _SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    _SG.DisplayOrder = 999
+    _SG.DisplayOrder = 999999
+    _SG.IgnoreGuiInset = true
     pcall(function() _SG.Parent = game:GetService("CoreGui") end)
     if not _SG.Parent then _SG.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
     local _isMob = UIS.TouchEnabled
-    local _btnSize = _isMob and 52 or 44
+    local _btnSize = _isMob and 62 or 54
 
-    -- Frame دائري
+    -- ── Outer glow ring (يدور) ──
+    local _outerGlow = Instance.new("ImageLabel")
+    _outerGlow.Name = "OuterGlow"
+    _outerGlow.Parent = _SG
+    _outerGlow.BackgroundTransparency = 1
+    _outerGlow.Size = UDim2.new(0, _btnSize + 24, 0, _btnSize + 24)
+    _outerGlow.Position = UDim2.new(1, -(_btnSize+24+12), 0, 12-12)
+    _outerGlow.Image = "rbxasset://textures/ui/Glow.png"
+    _outerGlow.ImageColor3 = Color3.fromRGB(100, 230, 255)
+    _outerGlow.ImageTransparency = 0.4
+    _outerGlow.ZIndex = 1
+
+    -- ── Main Frame (دائري) ──
     local _MF = Instance.new("Frame")
-    _MF.Name = "BoSqrButton"
+    _MF.Name = "RiveButton"
     _MF.Parent = _SG
-    _MF.BackgroundColor3 = Color3.fromRGB(28, 28, 40)
+    _MF.BackgroundColor3 = Color3.fromRGB(15, 30, 50)
     _MF.BorderSizePixel = 0
     _MF.Position = UDim2.new(1, -(_btnSize+12), 0, 12)
     _MF.Size = UDim2.new(0, _btnSize, 0, _btnSize)
     _MF.Active = true
+    _MF.ZIndex = 3
     Instance.new("UICorner", _MF).CornerRadius = UDim.new(1, 0)
 
-    local _stroke = Instance.new("UIStroke", _MF)
-    _stroke.Color = Color3.fromRGB(80, 200, 230)
-    _stroke.Thickness = 2.5
-
-    -- Gradient
+    -- ── Gradient ماء أزرق (مثل Rive) ──
     local _grad = Instance.new("UIGradient", _MF)
     _grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 80, 110)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 30, 50)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 50, 80)),
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(120, 220, 255)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(60, 180, 230)),
+        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(20, 100, 160)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(10, 50, 100)),
     })
     _grad.Rotation = 135
 
-    -- النص الرئيسي "Rive"
+    -- ── Inner stroke (إطار أزرق فاتح) ──
+    local _stroke = Instance.new("UIStroke", _MF)
+    _stroke.Color = Color3.fromRGB(150, 240, 255)
+    _stroke.Thickness = 2.5
+    _stroke.Transparency = 0.2
+
+    -- ── Highlight (انعكاس ضوء فوق) ──
+    local _shine = Instance.new("Frame")
+    _shine.Parent = _MF
+    _shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    _shine.BackgroundTransparency = 0.7
+    _shine.BorderSizePixel = 0
+    _shine.Size = UDim2.new(0.7, 0, 0.35, 0)
+    _shine.Position = UDim2.new(0.15, 0, 0.1, 0)
+    _shine.ZIndex = 4
+    Instance.new("UICorner", _shine).CornerRadius = UDim.new(1, 0)
+    local _shineG = Instance.new("UIGradient", _shine)
+    _shineG.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.4),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    _shineG.Rotation = 90
+
+    -- ── Text "Rive" ──
     local _TL = Instance.new("TextLabel")
     _TL.Parent = _MF
     _TL.BackgroundTransparency = 1
-    _TL.Size = UDim2.new(1, 0, 0, _btnSize * 0.5)
-    _TL.Position = UDim2.new(0, 0, 0, _btnSize * 0.15)
-    _TL.Font = Enum.Font.GothamBold
+    _TL.Size = UDim2.new(1, 0, 0, _btnSize * 0.45)
+    _TL.Position = UDim2.new(0, 0, 0.5, -(_btnSize * 0.28))
+    _TL.Font = Enum.Font.GothamBlack
     _TL.Text = "Rive"
-    _TL.TextColor3 = Color3.fromRGB(180, 230, 255)
-    _TL.TextSize = _isMob and 18 or 15
-    _TL.TextStrokeTransparency = 0.5
-    _TL.TextStrokeColor3 = Color3.fromRGB(0, 100, 150)
+    _TL.TextColor3 = Color3.fromRGB(255, 255, 255)
+    _TL.TextSize = _isMob and 22 or 19
+    _TL.TextStrokeTransparency = 0.3
+    _TL.TextStrokeColor3 = Color3.fromRGB(0, 80, 140)
+    _TL.ZIndex = 5
 
-    -- نص فرعي "SCRIPT"
+    -- ── Subtext "SCRIPT" ──
     local _TL2 = Instance.new("TextLabel")
     _TL2.Parent = _MF
     _TL2.BackgroundTransparency = 1
-    _TL2.Size = UDim2.new(1, 0, 0, _btnSize * 0.3)
-    _TL2.Position = UDim2.new(0, 0, 1, -(_btnSize * 0.4))
+    _TL2.Size = UDim2.new(1, 0, 0, _btnSize * 0.22)
+    _TL2.Position = UDim2.new(0, 0, 0.55, _btnSize * 0.05)
     _TL2.Font = Enum.Font.GothamBold
     _TL2.Text = "SCRIPT"
-    _TL2.TextColor3 = Color3.fromRGB(120, 180, 220)
-    _TL2.TextSize = _isMob and 8 or 7
+    _TL2.TextColor3 = Color3.fromRGB(200, 240, 255)
+    _TL2.TextSize = _isMob and 9 or 8
+    _TL2.TextStrokeTransparency = 0.7
+    _TL2.ZIndex = 5
 
-    -- Dot indicator (الحالة)
+    -- ── Status Dot ──
     local _dot = Instance.new("Frame")
     _dot.Parent = _MF
     _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 130)
     _dot.BorderSizePixel = 0
-    _dot.Size = UDim2.new(0, 10, 0, 10)
-    _dot.Position = UDim2.new(1, -10, 0, -2)
+    _dot.Size = UDim2.new(0, 12, 0, 12)
+    _dot.Position = UDim2.new(1, -8, 0, -2)
     _dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    _dot.ZIndex = 6
     Instance.new("UICorner", _dot).CornerRadius = UDim.new(1, 0)
     local _dotStroke = Instance.new("UIStroke", _dot)
-    _dotStroke.Color = Color3.fromRGB(28, 28, 40)
+    _dotStroke.Color = Color3.fromRGB(15, 30, 50)
     _dotStroke.Thickness = 2
 
-    -- زر شفاف للنقر
+    -- ── Click button (شفاف) ──
     local _TB = Instance.new("TextButton")
     _TB.Parent = _MF
     _TB.BackgroundTransparency = 1
     _TB.Size = UDim2.new(1, 0, 1, 0)
     _TB.Text = ""
     _TB.AutoButtonColor = false
+    _TB.ZIndex = 7
+
+    -- ── Glow animation (نبضة دائمة) ──
+    task.spawn(function()
+        while _MF.Parent do
+            TweenService:Create(_outerGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {
+                ImageTransparency = 0.7,
+                Size = UDim2.new(0, _btnSize + 32, 0, _btnSize + 32)
+            }):Play()
+            task.wait(1.5)
+            if not _MF.Parent then break end
+            TweenService:Create(_outerGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {
+                ImageTransparency = 0.3,
+                Size = UDim2.new(0, _btnSize + 18, 0, _btnSize + 18)
+            }):Play()
+            task.wait(1.5)
+        end
+    end)
+
+    -- ── Update glow position to follow button ──
+    RunService.Heartbeat:Connect(function()
+        if _MF.Parent and _outerGlow.Parent then
+            local bp = _MF.AbsolutePosition
+            local bs = _MF.AbsoluteSize
+            local gs = _outerGlow.AbsoluteSize
+            _outerGlow.Position = UDim2.new(0, bp.X + (bs.X - gs.X)/2, 0, bp.Y + (bs.Y - gs.Y)/2)
+        end
+    end)
 
     -- ── Drag logic ──
-    local _drag, _ds, _dp = false, nil, nil
-    local _dragMoved = false
+    local _drag, _ds, _dp, _dragMoved = false, nil, nil, false
     _TB.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch
            or input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -507,6 +575,10 @@ do
             _dragMoved = false
             _ds = input.Position
             _dp = _MF.Position
+            -- press animation
+            TweenService:Create(_MF, TweenInfo.new(0.1, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, _btnSize * 0.92, 0, _btnSize * 0.92)
+            }):Play()
         end
     end)
     UIS.InputChanged:Connect(function(input)
@@ -524,6 +596,10 @@ do
         if input.UserInputType == Enum.UserInputType.Touch
            or input.UserInputType == Enum.UserInputType.MouseButton1 then
             _drag = false
+            -- release animation (back to original size)
+            TweenService:Create(_MF, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, _btnSize, 0, _btnSize)
+            }):Play()
         end
     end)
 
@@ -531,33 +607,40 @@ do
     local _doubleTapTime = 0
     local _windowVisible = true
     _TB.MouseButton1Click:Connect(function()
-        -- ما نفتح/نغلق لو السحب تم
         if _dragMoved then _dragMoved = false return end
-
         local now = tick()
-        -- Double tap = طوارئ (تحرير الحركة)
+        -- Double tap = emergency unfreeze
         if (now - _doubleTapTime) < 0.4 then
             if _G.BoSqr_Unfreeze then _G.BoSqr_Unfreeze() end
-            _dot.BackgroundColor3 = Color3.fromRGB(255, 220, 0)
+            -- Flash yellow
+            TweenService:Create(_stroke, TweenInfo.new(0.2), {
+                Color = Color3.fromRGB(255, 220, 0),
+                Thickness = 4
+            }):Play()
             task.delay(0.6, function()
-                if _dot then _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 130) end
+                if _stroke then
+                    TweenService:Create(_stroke, TweenInfo.new(0.4), {
+                        Color = Color3.fromRGB(150, 240, 255),
+                        Thickness = 2.5
+                    }):Play()
+                end
             end)
             _doubleTapTime = 0
             return
         end
         _doubleTapTime = now
 
-        -- Toggle الـ Fluent window عبر API الصحيح
+        -- Toggle Fluent window
         _windowVisible = not _windowVisible
-        local ok = false
-        -- الطريقة 1: Window:Minimize() (الأفضل لـ Fluent)
-        ok = pcall(function()
+        local ok = pcall(function()
             if Window and Window.Minimize then
                 Window:Minimize()
+            else
+                error("no minimize")
             end
         end)
-        -- الطريقة 2: لو فشل، نتحكم بـ ScreenGui مباشرة
         if not ok then
+            -- Fallback: hide ScreenGui directly
             pcall(function()
                 local function tryToggle(parent)
                     if not parent then return end
@@ -576,10 +659,12 @@ do
             end)
         end
 
-        -- Visual feedback
-        _dot.BackgroundColor3 = _windowVisible
-            and Color3.fromRGB(0, 255, 130)
-            or  Color3.fromRGB(255, 150, 50)
+        -- Visual feedback (dot color)
+        TweenService:Create(_dot, TweenInfo.new(0.3), {
+            BackgroundColor3 = _windowVisible
+                and Color3.fromRGB(0, 255, 130)
+                or  Color3.fromRGB(255, 150, 50)
+        }):Play()
     end)
 end
 
@@ -1173,56 +1258,33 @@ if currentMapID == _A then
     local GET_GUN_ENABLED = false
     local getGunConn = nil
 
-    local _lastGunPos = nil
+    -- Get Gun - الطريقة الحقيقية من سورس open-source
+    -- بدل ما نتيليبورت للسلاح، نجيب السلاح إلينا!
     local function tryGetGun()
         local myChar = LocalPlayer.Character
         local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if not myHRP or not myHum or myHum.Health <= 0 then return end
 
-        -- الطريقة الحقيقية: MM2 يسمي السلاح الساقط "GunDrop"
-        local gundrop = workspace:FindFirstChild("GunDrop")
-        if gundrop and not _lastGunPos then
-            _lastGunPos = myHRP.CFrame
-            Notify("🔫", Lang=="AR" and "وجد GunDrop — جاري أخذه..." or "GunDrop found — picking up...")
-            task.spawn(function()
-                pcall(function()
-                    repeat
-                        if not GET_GUN_ENABLED then break end
-                        myHRP.CFrame = gundrop.CFrame
-                        RunService.Stepped:Wait()
-                    until not gundrop:IsDescendantOf(workspace) or not GET_GUN_ENABLED
-                    if _lastGunPos then
-                        myHRP.CFrame = _lastGunPos
-                        _lastGunPos = nil
-                    end
-                end)
-            end)
-            return
-        end
-
-        -- Fallback: ابحث بالاسم في workspace مباشرة
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj:IsA("Tool") then
-                local n = string.lower(obj.Name)
+        -- شيك هل عندنا سلاح قبل
+        for _, t in pairs(myChar:GetChildren()) do
+            if t:IsA("Tool") then
+                local n = t.Name:lower()
                 if n:find("gun") or n:find("revolver") or n:find("pistol") then
-                    local handle = obj:FindFirstChild("Handle")
-                    if handle and not _lastGunPos then
-                        _lastGunPos = myHRP.CFrame
-                        task.spawn(function()
-                            pcall(function()
-                                myHRP.CFrame = CFrame.new(handle.Position) + Vector3.new(0,3,0)
-                                task.wait(0.2)
-                                myHum:EquipTool(obj)
-                                task.wait(0.2)
-                                if _lastGunPos then myHRP.CFrame = _lastGunPos _lastGunPos = nil end
-                            end)
-                        end)
-                        Notify("🔫", (Lang=="AR" and "أخذ: " or "Got: ")..obj.Name)
-                        return
-                    end
+                    return -- معنا سلاح بالفعل
                 end
             end
+        end
+
+        -- الطريقة الصحيحة: GunDrop في workspace (الاسم الفعلي في MM2)
+        local gundrop = workspace:FindFirstChild("GunDrop")
+        if gundrop then
+            pcall(function()
+                -- ✅ نجيب السلاح إلينا (مش نتيليبورت له)
+                gundrop.CFrame = myHRP.CFrame
+            end)
+            Notify("🔫 ✅", Lang=="AR" and "السلاح جاء إليك!" or "Gun brought to you!")
+            return
         end
     end
 
@@ -1808,6 +1870,8 @@ if currentMapID == _A then
 
     -- Auto Farm Coins (الطريقة الحقيقية: workspace.CoinContainer.Coin_Server)
     local MM2_AutoFarmActive_C = false
+    -- Coin Farm - الطريقة الشغالة الأصلية
+    -- اللاعب يتيليبورت للكوين (CoinContainer.Coin_Server)
     local function MM2_AutoFarmCoin()
         local myChar = LocalPlayer.Character
         if not myChar then return end
@@ -1916,7 +1980,10 @@ if currentMapID == _A then
             local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if not myHRP then return end
             local cc = workspace:FindFirstChild("CoinContainer", true)
-            if not cc then return end
+            if not cc then
+                Notify("⚠️", Lang=="AR" and "ما في كوينز" or "No coins found")
+                return
+            end
             local count = 0
             local origPos = myHRP.CFrame
             for _, coin in pairs(cc:GetChildren()) do
@@ -2237,29 +2304,64 @@ if currentMapID == _A then
         -- (Coin ESP moved to Coins tab)
     -- Gun ESP (يضوي GunDrop)
     local _gunESPObj = nil
+    local _gunBBGui = nil
     Tabs.Esp:AddToggle("MM2_GunESP", {
         Title = "🔫 " .. (Lang=="AR" and "كشف السلاح (GunDrop)" or "Gun ESP"),
-        Description = Lang=="AR" and "يضوي السلاح لما يطيح من الشريف" or "Highlights dropped sheriff gun",
+        Description = Lang=="AR" and "يضوي السلاح + يكتب المسافة" or "Highlights gun + distance",
         Default = false
     }):OnChanged(function()
         if Options.MM2_GunESP.Value then
             task.spawn(function()
                 while Options.MM2_GunESP.Value do
                     local gd = workspace:FindFirstChild("GunDrop")
-                    if gd and not _gunESPObj then
-                        _gunESPObj = Instance.new("Highlight")
-                        _gunESPObj.FillColor = Color3.fromRGB(0,255,255)
-                        _gunESPObj.OutlineColor = Color3.fromRGB(255,255,0)
-                        _gunESPObj.FillTransparency = 0.3
-                        _gunESPObj.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        _gunESPObj.Parent = gd
-                    elseif not gd and _gunESPObj then
-                        _gunESPObj:Destroy()
-                        _gunESPObj = nil
+                    if gd then
+                        if not _gunESPObj or not _gunESPObj.Parent then
+                            -- Create highlight
+                            _gunESPObj = Instance.new("Highlight")
+                            _gunESPObj.Name = "BoSqr_GunHL"
+                            _gunESPObj.FillColor = Color3.fromRGB(0, 255, 200)
+                            _gunESPObj.OutlineColor = Color3.fromRGB(255, 255, 0)
+                            _gunESPObj.FillTransparency = 0.3
+                            _gunESPObj.OutlineTransparency = 0
+                            _gunESPObj.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            _gunESPObj.Parent = gd
+                            -- Create distance label
+                            _gunBBGui = Instance.new("BillboardGui")
+                            _gunBBGui.Name = "BoSqr_GunBB"
+                            _gunBBGui.Adornee = gd
+                            _gunBBGui.Size = UDim2.new(0, 150, 0, 40)
+                            _gunBBGui.StudsOffset = Vector3.new(0, 3, 0)
+                            _gunBBGui.AlwaysOnTop = true
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Parent = _gunBBGui
+                            lbl.BackgroundTransparency = 1
+                            lbl.Size = UDim2.new(1, 0, 1, 0)
+                            lbl.Font = Enum.Font.GothamBold
+                            lbl.TextSize = 14
+                            lbl.TextColor3 = Color3.fromRGB(0, 255, 200)
+                            lbl.TextStrokeTransparency = 0.5
+                            lbl.Text = "🔫 GUN DROPPED"
+                            _gunBBGui.Parent = gd
+                            Notify("🔫", Lang=="AR" and "السلاح ساقط!" or "GUN DROPPED!")
+                        end
+                        -- Update distance
+                        if _gunBBGui and _gunBBGui.Parent then
+                            local lbl = _gunBBGui:FindFirstChildOfClass("TextLabel")
+                            local myC = LocalPlayer.Character
+                            local myHRP = myC and myC:FindFirstChild("HumanoidRootPart")
+                            if lbl and myHRP then
+                                local dist = math.floor((gd.Position - myHRP.Position).Magnitude)
+                                lbl.Text = "🔫 GUN | " .. dist .. "m"
+                            end
+                        end
+                    else
+                        if _gunESPObj then pcall(function() _gunESPObj:Destroy() end) _gunESPObj = nil end
+                        if _gunBBGui then pcall(function() _gunBBGui:Destroy() end) _gunBBGui = nil end
                     end
-                    task.wait(0.5)
+                    task.wait(0.3)
                 end
-                if _gunESPObj then _gunESPObj:Destroy() _gunESPObj = nil end
+                if _gunESPObj then pcall(function() _gunESPObj:Destroy() end) _gunESPObj = nil end
+                if _gunBBGui then pcall(function() _gunBBGui:Destroy() end) _gunBBGui = nil end
             end)
             Notify("🔫", Lang=="AR" and "Gun ESP مفعل!" or "Gun ESP ON!")
         end
@@ -3749,114 +3851,153 @@ elseif currentMapID == _C then
     end)
 
     -- Anti-Bomb (يدفع القنبلة بعيد)
-    -- 🛡️ Anti-Bomb: 3 طرق دفاعية مدمجة
-    -- 1. Ragdoll (PlatformStand): الشخصية نايمة = ما تستلم
-    -- 2. Auto-Drop: لو حصلت قنبلة، ارميها بعيد فوراً
-    -- 3. Network ghost: يعطل touched events
+    -- 🛡️ Anti-Bomb: طريقة جديدة بدون تجميد اللاعب
+    -- ✅ تفحص شخصيتك كل 0.1 ثانية
+    -- ✅ لو حصلت قنبلة، ترميها فوراً عبر firetouchinterest على أقرب لاعب
+    -- ✅ ما تلمس Humanoid أبداً (يبقى يتحرك طبيعي)
     Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (3 طبقات)" or "Anti Bomb (3 layers)"),
-        Description = Lang=="AR" and "Ragdoll + Auto-Drop + Ghost touch" or "Ragdoll + Auto-Drop + Ghost",
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (نقل تلقائي)" or "Anti Bomb (Auto Pass)"),
+        Description = Lang=="AR" and "ينقل القنبلة فوراً لأقرب لاعب" or "Auto-passes bomb to nearest player",
         Default = false
     }):OnChanged(function()
         TBT_AntiBombActive = Options.TBT_AntiBomb.Value
         if TBT_AntiBombActive then
-            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل (3 طرق)" or "Anti Bomb ON (3 methods)")
-
-            -- Loop رئيسي: ragdoll دائم + فحص القنابل
+            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
             task.spawn(function()
                 while TBT_AntiBombActive do
                     pcall(function()
                         local c = Player.Character
                         if c then
-                            local hum = c:FindFirstChildOfClass("Humanoid")
-                            local hrp = c:FindFirstChild("HumanoidRootPart")
-
-                            if hum then
-                                -- 🛡️ Layer 1: Ragdoll
-                                hum.PlatformStand = true
-                                pcall(function()
-                                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
-                                    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-                                end)
-                            end
-
-                            -- 🛡️ Layer 2: Auto-Drop bombs instantly
+                            -- فحص: هل عندنا قنبلة؟
+                            local bomb = nil
                             for _, t in pairs(c:GetChildren()) do
                                 if t:IsA("Tool") then
                                     local n = t.Name:lower()
                                     if n:find("bomb") or n:find("tnt") or n:find("explosive") then
-                                        -- درب القنبلة بعيد
-                                        pcall(function() t.Parent = workspace end)
-                                        local h = t:FindFirstChild("Handle")
-                                        if h then
-                                            pcall(function()
-                                                h.Velocity = Vector3.new(
-                                                    math.random(-200, 200),
-                                                    150,
-                                                    math.random(-200, 200)
-                                                )
-                                                h.RotVelocity = Vector3.new(50,50,50)
-                                            end)
-                                        end
+                                        bomb = t
+                                        break
                                     end
                                 end
                             end
-
-                            -- 🛡️ Layer 3: Disable touched on body parts
-                            if hrp then
-                                pcall(function()
-                                    hrp.CanTouch = false
-                                end)
-                            end
-                            for _, p in pairs(c:GetChildren()) do
-                                if p:IsA("BasePart") then
-                                    pcall(function() p.CanTouch = false end)
+                            if bomb then
+                                -- وجدنا قنبلة! ابحث عن أقرب لاعب
+                                local myHRP = c:FindFirstChild("HumanoidRootPart")
+                                if myHRP then
+                                    local closest, minDist = nil, math.huge
+                                    for _, p in pairs(Players:GetPlayers()) do
+                                        if p ~= Player and p.Character
+                                           and p.Character:FindFirstChild("HumanoidRootPart") then
+                                            local hum2 = p.Character:FindFirstChildOfClass("Humanoid")
+                                            if hum2 and hum2.Health > 0 then
+                                                local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                                                if d < minDist then
+                                                    minDist = d
+                                                    closest = p
+                                                end
+                                            end
+                                        end
+                                    end
+                                    if closest and closest.Character then
+                                        local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
+                                        local handle = bomb:FindFirstChild("Handle")
+                                        if tHRP and handle then
+                                            -- 1. نقل القنبلة عبر firetouchinterest (بدون تيليبورت)
+                                            pcall(function()
+                                                firetouchinterest(tHRP, handle, 1)
+                                                firetouchinterest(tHRP, handle, 0)
+                                            end)
+                                            -- 2. لو firetouch ما اشتغل، parent fallback
+                                            task.wait(0.1)
+                                            if bomb.Parent == c then
+                                                pcall(function()
+                                                    bomb.Parent = closest.Character
+                                                end)
+                                            end
+                                            -- 3. أطلق الـ remotes اللي تخص القنبلة
+                                            for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                                                if re:IsA("RemoteEvent") then
+                                                    local rn = re.Name:lower()
+                                                    if rn:find("bomb") or rn:find("transfer") or rn:find("pass") then
+                                                        pcall(function() re:FireServer(closest) end)
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    end
                                 end
                             end
                         end
                     end)
                     task.wait(0.15)
                 end
-
-                -- Cleanup عند الإيقاف
-                pcall(function()
-                    local c = Player.Character
-                    if c then
-                        local hum = c:FindFirstChildOfClass("Humanoid")
-                        if hum then
-                            hum.PlatformStand = false
-                            pcall(function()
-                                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-                            end)
-                        end
-                        for _, p in pairs(c:GetChildren()) do
-                            if p:IsA("BasePart") then
-                                pcall(function() p.CanTouch = true end)
-                            end
-                        end
-                    end
-                end)
             end)
         else
-            -- إيقاف فوري + cleanup
-            pcall(function()
-                local c = Player.Character
-                if c then
-                    local hum = c:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.PlatformStand = false
-                        pcall(function()
-                            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-                        end)
-                    end
-                    for _, p in pairs(c:GetChildren()) do
-                        if p:IsA("BasePart") then
-                            pcall(function() p.CanTouch = true end)
+            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
+        end
+    end)
+
+    -- 🚨 Anti-Bomb Stealth Mode (يستخدم teleport hidden)
+    Tabs.Bomb:AddToggle("TBT_AntiBombStealth", {
+        Title = "👻 " .. (Lang=="AR" and "Anti Bomb (تيلي خفي)" or "Anti Bomb (Stealth TP)"),
+        Description = Lang=="AR" and "يتيليبورت لأقرب لاعب لما يصلك القنبلة" or "Teleport-pass when bomb received",
+        Default = false
+    }):OnChanged(function()
+        local on = Options.TBT_AntiBombStealth.Value
+        if on then
+            Notify("👻", Lang=="AR" and "Stealth Anti Bomb مفعل" or "Stealth ON")
+            task.spawn(function()
+                while Options.TBT_AntiBombStealth.Value do
+                    pcall(function()
+                        local c = Player.Character
+                        if c then
+                            local bomb = nil
+                            for _, t in pairs(c:GetChildren()) do
+                                if t:IsA("Tool") then
+                                    local n = t.Name:lower()
+                                    if n:find("bomb") or n:find("tnt") then bomb = t break end
+                                end
+                            end
+                            if bomb then
+                                local myHRP = c:FindFirstChild("HumanoidRootPart")
+                                if myHRP then
+                                    local closest, minDist = nil, math.huge
+                                    for _, p in pairs(Players:GetPlayers()) do
+                                        if p ~= Player and p.Character
+                                           and p.Character:FindFirstChild("HumanoidRootPart") then
+                                            local hum2 = p.Character:FindFirstChildOfClass("Humanoid")
+                                            if hum2 and hum2.Health > 0 then
+                                                local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                                                if d < minDist then minDist = d closest = p end
+                                            end
+                                        end
+                                    end
+                                    if closest then
+                                        local origPos = myHRP.CFrame
+                                        local tHRP = closest.Character.HumanoidRootPart
+                                        -- تيليبورت سريع (3 خطوات smooth)
+                                        for i = 1, 3 do
+                                            myHRP.CFrame = origPos:Lerp(tHRP.CFrame * CFrame.new(0,0,-1.5), i/3)
+                                            task.wait(0.02)
+                                        end
+                                        -- نقل القنبلة
+                                        pcall(function() bomb.Parent = closest.Character end)
+                                        task.wait(0.1)
+                                        -- ارجع
+                                        for i = 1, 3 do
+                                            myHRP.CFrame = origPos:Lerp(origPos, i/3)
+                                            task.wait(0.02)
+                                        end
+                                        myHRP.CFrame = origPos
+                                    end
+                                end
+                            end
                         end
-                    end
+                    end)
+                    task.wait(0.1)
                 end
             end)
-            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
+        else
+            Notify("👻", Lang=="AR" and "Stealth أوقف" or "Stealth OFF")
         end
     end)
 
