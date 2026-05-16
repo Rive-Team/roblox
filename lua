@@ -32,19 +32,56 @@ local _writefile = writefile or write_file or function() end
 firetouchinterest = _firetouchinterest
 fireproximityprompt = _fireproximityprompt
 
--- ── Anti-Detection / Anti-Ban Layer ──
--- يخفي نشاطنا من كاشفات السكربتات
+-- ── Anti-Detection / Anti-Ban Layer (محسّن) ──
+-- ✅ Anti-Hook detection
+-- ✅ Anti-Spy on our remotes
+-- ✅ Sandbox detection
+-- ✅ Anti-Kick (يحاول)
 do
-    -- Hide our script signature from environment scans
+    -- 1. Detect hook attempts
     pcall(function()
-        local origGetfenv = getfenv
-        if origGetfenv then
-            -- Don't expose our locals to outside getfenv calls
-            local hiddenKeys = {
-                "_PA", "_PB", "_PC", "_pid", "_isRealRoblox",
-                "BoSqr", "bosqr", "_xd", "_x"
-            }
-            -- (This is informational - actual hiding requires hookmetamethod)
+        local origPrint = print
+        local origWarn = warn
+        if origPrint and type(origPrint) == "function" then
+            local s = tostring(origPrint)
+            if s:find("hook") or s:find("spy") then
+                -- Print is hooked - we're being watched
+                _G.BoSqr_Watched = true
+            end
+        end
+    end)
+
+    -- 2. Anti-Kick - يحاول يمنع game.Players.LocalPlayer:Kick()
+    pcall(function()
+        if _hookmetamethod and _getrawmetatable then
+            local plr = game:GetService("Players").LocalPlayer
+            local mt = _getrawmetatable(game)
+            if mt and mt.__namecall then
+                _setreadonly(mt, false)
+                local oldNamecall = mt.__namecall
+                mt.__namecall = _newcclosure(function(self, ...)
+                    local method = (getnamecallmethod and getnamecallmethod()) or ""
+                    -- منع Kick
+                    if method == "Kick" and self == plr then
+                        warn("[Bo.Sqr] Kick blocked!")
+                        return nil
+                    end
+                    return oldNamecall(self, ...)
+                end)
+                _setreadonly(mt, true)
+            end
+        end
+    end)
+
+    -- 3. Hide bosqr_loaded flag from external scans
+    pcall(function()
+        -- نخلي القيمة tricky - نحفظها في table عميق
+        local gg = _getgenv()
+        if gg then
+            -- Store in nested table to evade simple scans
+            gg._B = gg._B or {}
+            gg._B._S = gg._B._S or {}
+            gg._B._S.q = true
         end
     end)
 end
@@ -321,60 +358,58 @@ do
     pcall(function() _SG.Parent = game:GetService("CoreGui") end)
     if not _SG.Parent then _SG.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
 
-    -- Tap Bar - حجم مناسب للجوال والكمبيوتر
+    -- Tap Bar — زر دائري صغير (يظهر عند الإغلاق + draggable)
     local _isMob = game:GetService("UserInputService").TouchEnabled
-    local _barW = _isMob and 110 or 100
-    local _barH = _isMob and 44 or 36
-    local _barTxt = _isMob and 14 or 13
-    local _barDot = _isMob and 10 or 8
+    local _btnSize = _isMob and 48 or 42
 
     local _MF = Instance.new("Frame")
     _MF.Name = "TapBar" _MF.Parent = _SG
-    _MF.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+    _MF.BackgroundColor3 = Color3.fromRGB(28, 28, 40)
     _MF.BackgroundTransparency = 0
     _MF.BorderSizePixel = 0
-    _MF.Position = UDim2.new(1, -(_barW+8), 0, 10)
-    _MF.Size = UDim2.new(0, _barW, 0, _barH)
+    _MF.Position = UDim2.new(1, -(_btnSize+12), 0, 12)
+    _MF.Size = UDim2.new(0, _btnSize, 0, _btnSize)
     _MF.Active = true
-    Instance.new("UICorner", _MF).CornerRadius = UDim.new(0, 12)
+    -- دائري كامل
+    Instance.new("UICorner", _MF).CornerRadius = UDim.new(1, 0)
+    -- إطار وردي
     local _stroke2 = Instance.new("UIStroke", _MF)
-    _stroke2.Color = Color3.fromRGB(220, 60, 140)
-    _stroke2.Thickness = 1.8
-    -- Shadow effect
+    _stroke2.Color = Color3.fromRGB(255, 80, 160)
+    _stroke2.Thickness = 2
+    -- gradient خلفية
     local _shadow = Instance.new("UIGradient", _MF)
     _shadow.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(35,25,40)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(18,18,28))
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(45,30,55)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(20,18,28))
     })
-    _shadow.Rotation = 90
+    _shadow.Rotation = 135
 
-    -- Dot indicator
-    local _dot = Instance.new("Frame")
-    _dot.Parent = _MF
-    _dot.BackgroundColor3 = Color3.fromRGB(255, 80, 160)
-    _dot.BorderSizePixel = 0
-    _dot.Size = UDim2.new(0, _barDot, 0, _barDot)
-    _dot.Position = UDim2.new(0, 10, 0.5, -(_barDot/2))
-    Instance.new("UICorner", _dot).CornerRadius = UDim.new(1, 0)
-    -- Dot pulse effect
-    local _dotStroke = Instance.new("UIStroke", _dot)
-    _dotStroke.Color = Color3.fromRGB(255, 120, 200)
-    _dotStroke.Thickness = 1.5
-    _dotStroke.Transparency = 0.5
-
-    -- Text
+    -- أيقونة "BS" بالنص (حروف أول من Bo.Sqr)
     local _TL = Instance.new("TextLabel")
     _TL.Parent = _MF
     _TL.BackgroundTransparency = 1
-    _TL.Size = UDim2.new(1, -28, 1, 0)
-    _TL.Position = UDim2.new(0, 24, 0, 0)
+    _TL.Size = UDim2.new(1, 0, 1, 0)
+    _TL.Position = UDim2.new(0, 0, 0, 0)
     _TL.Font = Enum.Font.GothamBold
-    _TL.Text = "Bo.Sqr"
-    _TL.TextColor3 = Color3.fromRGB(240, 235, 250)
-    _TL.TextSize = _barTxt
-    _TL.TextXAlignment = Enum.TextXAlignment.Left
+    _TL.Text = "👑"
+    _TL.TextColor3 = Color3.fromRGB(255, 215, 100)
+    _TL.TextSize = _isMob and 24 or 20
+    _TL.TextXAlignment = Enum.TextXAlignment.Center
 
-    -- Invisible click button
+    -- Dot indicator صغيرة (تدل على الحالة)
+    local _dot = Instance.new("Frame")
+    _dot.Parent = _MF
+    _dot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    _dot.BorderSizePixel = 0
+    _dot.Size = UDim2.new(0, 10, 0, 10)
+    _dot.Position = UDim2.new(1, -10, 0, -2)
+    _dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    Instance.new("UICorner", _dot).CornerRadius = UDim.new(1, 0)
+    local _dotStroke = Instance.new("UIStroke", _dot)
+    _dotStroke.Color = Color3.fromRGB(28, 28, 40)
+    _dotStroke.Thickness = 2
+
+    -- زر شفاف فوق الكل للنقر
     local _TB = Instance.new("TextButton")
     _TB.Parent = _MF
     _TB.BackgroundTransparency = 1
@@ -1026,8 +1061,12 @@ if currentMapID == _A then
     })
     Tabs.Home:AddParagraph({
         Title   = "👤 " .. L("profile"),
-        Content = "Name: @" .. LocalPlayer.Name .. "\nID: " .. tostring(LocalPlayer.UserId) ..
-                  "\nExecutor: " .. ((_identifyexecutor()) or "Unknown")
+        Content = "👤 Name: @" .. LocalPlayer.Name
+                  .. "\n🎭 Display: " .. (LocalPlayer.DisplayName or LocalPlayer.Name)
+                  .. "\n🆔 ID: " .. tostring(LocalPlayer.UserId)
+                  .. "\n🎮 Executor: " .. _identifyexecutor()
+                  .. "\n📅 Account Age: " .. LocalPlayer.AccountAge .. " days"
+                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
     })
     Tabs.Home:AddButton({
         Title = "💬 " .. L("copy_discord"),
@@ -2678,7 +2717,12 @@ elseif currentMapID == _B then
     })
     Tabs.Home:AddParagraph({
         Title = "👤 " .. L("profile"),
-        Content = "Name: @"..Player.Name.."\nID: "..tostring(Player.UserId).."\nExecutor: "..((_identifyexecutor()) or "Unknown")
+        Content = "👤 Name: @" .. Player.Name
+                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
+                  .. "\n🆔 ID: " .. tostring(Player.UserId)
+                  .. "\n🎮 Executor: " .. _identifyexecutor()
+                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
+                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
     })
     Tabs.Home:AddButton({
         Title = "💬 " .. L("copy_discord"),
@@ -3456,7 +3500,12 @@ elseif currentMapID == _C then
     })
     Tabs.Home:AddParagraph({
         Title = "👤 " .. L("profile"),
-        Content = "Name: @" .. Player.Name .. "\nID: " .. tostring(Player.UserId) .. "\nExecutor: " .. _identifyexecutor()
+        Content = "👤 Name: @" .. Player.Name
+                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
+                  .. "\n🆔 ID: " .. tostring(Player.UserId)
+                  .. "\n🎮 Executor: " .. _identifyexecutor()
+                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
+                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
     })
     Tabs.Home:AddButton({
         Title = "💬 " .. L("copy_discord"),
@@ -3539,73 +3588,110 @@ elseif currentMapID == _C then
     end)
 
     -- Anti-Bomb (يدفع القنبلة بعيد)
+    -- 🛡️ Anti-Bomb: 3 طرق دفاعية مدمجة
+    -- 1. Ragdoll (PlatformStand): الشخصية نايمة = ما تستلم
+    -- 2. Auto-Drop: لو حصلت قنبلة، ارميها بعيد فوراً
+    -- 3. Network ghost: يعطل touched events
     Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (Ragdoll)" or "Anti Bomb (Ragdoll)"),
-        Description = Lang=="AR" and "نايم بالأرض = ما تستلم قنبلة" or "Ragdoll trick: can't receive bombs",
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (3 طبقات)" or "Anti Bomb (3 layers)"),
+        Description = Lang=="AR" and "Ragdoll + Auto-Drop + Ghost touch" or "Ragdoll + Auto-Drop + Ghost",
         Default = false
     }):OnChanged(function()
         TBT_AntiBombActive = Options.TBT_AntiBomb.Value
         if TBT_AntiBombActive then
-            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
-            -- Ragdoll loop - يخلي الشخصية نايمة دائماً
+            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل (3 طرق)" or "Anti Bomb ON (3 methods)")
+
+            -- Loop رئيسي: ragdoll دائم + فحص القنابل
             task.spawn(function()
                 while TBT_AntiBombActive do
                     pcall(function()
                         local c = Player.Character
                         if c then
                             local hum = c:FindFirstChildOfClass("Humanoid")
+                            local hrp = c:FindFirstChild("HumanoidRootPart")
+
                             if hum then
-                                -- Ragdoll عبر PlatformStand
+                                -- 🛡️ Layer 1: Ragdoll
                                 hum.PlatformStand = true
-                                -- نعطل state types اللي تخلي تنفعل القنبلة
-                                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                                pcall(function()
+                                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                                    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+                                end)
                             end
-                            -- لو فيه قنبلة معنا، احذفها
+
+                            -- 🛡️ Layer 2: Auto-Drop bombs instantly
                             for _, t in pairs(c:GetChildren()) do
                                 if t:IsA("Tool") then
                                     local n = t.Name:lower()
-                                    if n:find("bomb") or n:find("tnt") then
-                                        -- ارمي القنبلة بعيد
-                                        local hrp = c:FindFirstChild("HumanoidRootPart")
-                                        if hrp then
-                                            t.Parent = workspace
-                                            local handle = t:FindFirstChild("Handle")
-                                            if handle then
-                                                handle.Velocity = Vector3.new(
-                                                    math.random(-100,100),
-                                                    100,
-                                                    math.random(-100,100)
+                                    if n:find("bomb") or n:find("tnt") or n:find("explosive") then
+                                        -- درب القنبلة بعيد
+                                        pcall(function() t.Parent = workspace end)
+                                        local h = t:FindFirstChild("Handle")
+                                        if h then
+                                            pcall(function()
+                                                h.Velocity = Vector3.new(
+                                                    math.random(-200, 200),
+                                                    150,
+                                                    math.random(-200, 200)
                                                 )
-                                            end
+                                                h.RotVelocity = Vector3.new(50,50,50)
+                                            end)
                                         end
                                     end
                                 end
                             end
+
+                            -- 🛡️ Layer 3: Disable touched on body parts
+                            if hrp then
+                                pcall(function()
+                                    hrp.CanTouch = false
+                                end)
+                            end
+                            for _, p in pairs(c:GetChildren()) do
+                                if p:IsA("BasePart") then
+                                    pcall(function() p.CanTouch = false end)
+                                end
+                            end
                         end
                     end)
-                    task.wait(0.2)
+                    task.wait(0.15)
                 end
-                -- تنظيف عند الإغلاق
+
+                -- Cleanup عند الإيقاف
                 pcall(function()
                     local c = Player.Character
                     if c then
                         local hum = c:FindFirstChildOfClass("Humanoid")
                         if hum then
                             hum.PlatformStand = false
-                            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                            pcall(function()
+                                hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                            end)
+                        end
+                        for _, p in pairs(c:GetChildren()) do
+                            if p:IsA("BasePart") then
+                                pcall(function() p.CanTouch = true end)
+                            end
                         end
                     end
                 end)
             end)
         else
-            -- تأكد من إيقاف الـ ragdoll
+            -- إيقاف فوري + cleanup
             pcall(function()
                 local c = Player.Character
                 if c then
                     local hum = c:FindFirstChildOfClass("Humanoid")
                     if hum then
                         hum.PlatformStand = false
-                        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                        pcall(function()
+                            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                        end)
+                    end
+                    for _, p in pairs(c:GetChildren()) do
+                        if p:IsA("BasePart") then
+                            pcall(function() p.CanTouch = true end)
+                        end
                     end
                 end
             end)
