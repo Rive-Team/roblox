@@ -32,26 +32,79 @@ local _writefile = writefile or write_file or function() end
 firetouchinterest = _firetouchinterest
 fireproximityprompt = _fireproximityprompt
 
--- ── Anti-Detection / Anti-Ban Layer (محسّن) ──
--- ✅ Anti-Hook detection
--- ✅ Anti-Spy on our remotes
--- ✅ Sandbox detection
--- ✅ Anti-Kick (يحاول)
+-- ══════════════════════════════════════════════════════════════
+-- 🛡️ Anti-Detection / Anti-Ban Layer (مطوّر - يتخطى حمايات الألعاب)
+-- ══════════════════════════════════════════════════════════════
 do
-    -- 1. Detect hook attempts
+    -- ───────────────────────────────────────────────
+    -- 1. Block Kick (الطريقة المباشرة - hookfunction)
+    -- ───────────────────────────────────────────────
     pcall(function()
-        local origPrint = print
-        local origWarn = warn
-        if origPrint and type(origPrint) == "function" then
-            local s = tostring(origPrint)
-            if s:find("hook") or s:find("spy") then
-                -- Print is hooked - we're being watched
-                _G.BoSqr_Watched = true
+        if hookfunction then
+            hookfunction(game.Players.LocalPlayer.Kick, function()
+                return task.wait(9e9)
+            end)
+        end
+    end)
+
+    -- ───────────────────────────────────────────────
+    -- 2. Block AntiCheat detect functions في getgc
+    -- ───────────────────────────────────────────────
+    pcall(function()
+        if getgc and hookfunction and islclosure and isourclosure then
+            for i, v in next, getgc() do
+                if typeof(v) == "function" and islclosure(v) and not isourclosure(v) then
+                    local ok1, source = pcall(debug.info, v, "s")
+                    local ok2, info = pcall(debug.getinfo or getinfo, v)
+                    if ok1 and ok2 and source and info and info.name then
+                        local lower = info.name:lower()
+                        if source:find("ReplicatedFirst") or source:find("LocalScript") then
+                            if lower:find("detect") or lower:find("check")
+                               or lower:find("anti") or lower:find("ban") then
+                                pcall(function()
+                                    hookfunction(v, function()
+                                        return coroutine.yield()
+                                    end)
+                                end)
+                            end
+                        end
+                    end
+                end
             end
         end
     end)
 
-    -- 2. Anti-Kick - يحاول يمنع game.Players.LocalPlayer:Kick()
+    -- ───────────────────────────────────────────────
+    -- 3. xpcall hook - يبلع كل callbacks مش حقّتنا
+    -- ───────────────────────────────────────────────
+    pcall(function()
+        if hookfunction and getrenv and checkcaller and isfunctionhooked then
+            local renv = getrenv()
+            if renv and renv.xpcall then
+                _G._BoSqr_oldXpcall = hookfunction(renv.xpcall, function(...)
+                    local args = {...}
+                    if not checkcaller() then
+                        for i, v in next, args do
+                            if typeof(v) == "function" then
+                                if not isfunctionhooked(v) then
+                                    pcall(function()
+                                        hookfunction(v, function()
+                                            return coroutine.yield()
+                                        end)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                    return _G._BoSqr_oldXpcall(unpack(args))
+                end)
+            end
+        end
+    end)
+
+    -- ───────────────────────────────────────────────
+    -- 4. Anti-Kick عبر __namecall (احتياطي)
+    -- ───────────────────────────────────────────────
     pcall(function()
         if _hookmetamethod and _getrawmetatable then
             local plr = game:GetService("Players").LocalPlayer
@@ -61,9 +114,7 @@ do
                 local oldNamecall = mt.__namecall
                 mt.__namecall = _newcclosure(function(self, ...)
                     local method = (getnamecallmethod and getnamecallmethod()) or ""
-                    -- منع Kick
                     if method == "Kick" and self == plr then
-                        warn("[Bo.Sqr] Kick blocked!")
                         return nil
                     end
                     return oldNamecall(self, ...)
@@ -73,12 +124,12 @@ do
         end
     end)
 
-    -- 3. Hide bosqr_loaded flag from external scans
+    -- ───────────────────────────────────────────────
+    -- 5. Hide our flag
+    -- ───────────────────────────────────────────────
     pcall(function()
-        -- نخلي القيمة tricky - نحفظها في table عميق
         local gg = _getgenv()
         if gg then
-            -- Store in nested table to evade simple scans
             gg._B = gg._B or {}
             gg._B._S = gg._B._S or {}
             gg._B._S.q = true
@@ -422,6 +473,7 @@ do
 
     local _SG = Instance.new("ScreenGui")
     _SG.Name = "BoSqrRiveTap"
+    _G.BoSqr_TapBar = _SG  -- accessible globally for close
     _SG.ResetOnSpawn = false
     _SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     _SG.DisplayOrder = 999999
@@ -2080,10 +2132,38 @@ if currentMapID == _A then
             local myChar = LocalPlayer.Character
             local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if not myHRP then return end
-            local gd = workspace:FindFirstChild("GunDrop")
+            -- ابحث بشكل أعمق
+            local function findGun(parent, depth)
+                depth = depth or 0
+                if depth > 4 then return nil end
+                for _, c in pairs(parent:GetChildren()) do
+                    if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
+                        return c
+                    end
+                    if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
+                        local r = findGun(c, depth + 1)
+                        if r then return r end
+                    end
+                end
+                return nil
+            end
+            local gd = findGun(workspace, 0)
             if gd then
-                myHRP.CFrame = CFrame.new(gd.Position + Vector3.new(0, 3, 0))
-                Notify("🔫", Lang=="AR" and "انتقلت للسلاح!" or "Teleported to gun!")
+                local pos
+                if gd:IsA("BasePart") then
+                    pos = gd.Position
+                elseif gd:IsA("Tool") then
+                    local handle = gd:FindFirstChild("Handle")
+                    pos = handle and handle.Position
+                elseif gd:IsA("Model") and gd.PrimaryPart then
+                    pos = gd.PrimaryPart.Position
+                end
+                if pos then
+                    myHRP.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                    Notify("🔫", Lang=="AR" and "انتقلت للسلاح!" or "Teleported to gun!")
+                else
+                    Notify("⚠️", Lang=="AR" and "ما قدرت أوصل" or "Can't reach")
+                end
             else
                 Notify("⚠️", Lang=="AR" and "ما في سلاح مرمي" or "No dropped gun")
             end
@@ -2629,16 +2709,27 @@ if currentMapID == _A then
         end
     })
     Tabs.Config:AddSection("⚙️")
+    local _closeMM2_confirm = false
     Tabs.Config:AddButton({
         Title = "❌ " .. L("close_script"),
+        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
         Callback = function()
+            if not _closeMM2_confirm then
+                _closeMM2_confirm = true
+                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
+                task.delay(5, function() _closeMM2_confirm = false end)
+                return
+            end
             pcall(ClearAllTracers) pcall(disableESP) pcall(DisableChams)
             pcall(function() FOV_Circle:Remove() end)
             pcall(stopFly) pcall(stopNoclip) pcall(stopKnifeReach)
             MM2_KillAllActive = false
             GET_GUN_ENABLED = false
             if getGunConn then getGunConn:Disconnect() end
-            -- Allow re-execution
+            -- احذف TapBar
+            pcall(function()
+                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
         end
@@ -3093,8 +3184,8 @@ elseif currentMapID == _B then
     Tabs.Cars:AddSlider("KW_DriftPower", { Title="⚡ قوة الدوران", Min=19, Max=100, Default=50, Rounding=0,
         Callback=function(v) _G.DriftPower=v end })
     Tabs.Cars:AddSection("⬆️ الترفيع (Wheelie)")
-    local KW_LiftPower = 0.5
-    Tabs.Cars:AddSlider("KW_LiftPower", { Title="💪 قوة الترفيع", Min=1, Max=10, Default=5, Rounding=0,
+    local KW_LiftPower = 0.1
+    Tabs.Cars:AddSlider("KW_LiftPower", { Title="💪 قوة الترفيع (0.0 - 1.0)", Min=0, Max=10, Default=1, Rounding=0,
         Callback=function(v) KW_LiftPower=v/10 end })
     local LeftLiftToggle = Tabs.Cars:AddToggle("KW_LeftLift", { Title="⬅️ ترفيع كفرين يسار", Default=false })
     LeftLiftToggle:OnChanged(function()
@@ -3544,9 +3635,17 @@ elseif currentMapID == _B then
         end
     })
     Tabs.Config:AddSection("⚙️")
+    local _closeKW_confirm = false
     Tabs.Config:AddButton({
         Title = "❌ " .. L("close_script"),
+        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
         Callback = function()
+            if not _closeKW_confirm then
+                _closeKW_confirm = true
+                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
+                task.delay(5, function() _closeKW_confirm = false end)
+                return
+            end
             FlyActive=false NoclipActive=false DriftFarmActive=false SmartFarmActive=false
             GodModeActive=false AutoHealActive=false AutoFarmDriveActive=false
             AimbotActive=false SilentAimActive=false SpeedHackActive=false
@@ -3558,7 +3657,10 @@ elseif currentMapID == _B then
             if AimbotConn then AimbotConn:Disconnect() end
             if SpeedHackConn then SpeedHackConn:Disconnect() end
             if AntiFlingConn then AntiFlingConn:Disconnect() end
-            -- Allow re-execution
+            -- احذف TapBar
+            pcall(function()
+                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
         end
@@ -3622,6 +3724,14 @@ elseif currentMapID == _C then
     end
 
     -- ── ESP function ──────────────────────────────
+    -- ── Team check helper ──
+    local function _isMyTeammate(p)
+        if not p or p == Player then return false end
+        if Player.Team and p.Team and Player.Team == p.Team then return true end
+        if Player.TeamColor and p.TeamColor and Player.TeamColor == p.TeamColor then return true end
+        return false
+    end
+
     local function TBT_CreateESP(plr)
         if plr == Player or not plr.Character then return end
         if plr.Character:FindFirstChild("BoSqr_TBT_ESP") then return end
@@ -3630,11 +3740,23 @@ elseif currentMapID == _C then
         h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         h.FillTransparency = 0.6
         h.OutlineTransparency = 0
-        -- لون مختلف لو معه قنبلة
-        if TBT_HasBomb(plr.Character) then
-            h.FillColor = Color3.fromRGB(255, 50, 50)
+        -- تحديد اللون حسب: الفريق + من معه القنبلة
+        local hasBomb = TBT_HasBomb(plr.Character) ~= nil
+        local isTeam = _isMyTeammate(plr)
+        if hasBomb and isTeam then
+            -- زميل ومعه قنبلة → أصفر (لا تقربه!)
+            h.FillColor = Color3.fromRGB(255, 220, 0)
             h.OutlineColor = Color3.fromRGB(255, 200, 0)
+        elseif hasBomb and not isTeam then
+            -- عدو ومعه قنبلة → أحمر داكن
+            h.FillColor = Color3.fromRGB(200, 0, 0)
+            h.OutlineColor = Color3.fromRGB(255, 100, 0)
+        elseif isTeam then
+            -- زميل آمن → أزرق
+            h.FillColor = Color3.fromRGB(80, 160, 255)
+            h.OutlineColor = Color3.fromRGB(150, 220, 255)
         else
+            -- عدو آمن → أخضر
             h.FillColor = Color3.fromRGB(80, 255, 120)
             h.OutlineColor = Color3.fromRGB(255, 255, 255)
         end
@@ -3660,18 +3782,26 @@ elseif currentMapID == _C then
             -- update loop
             task.spawn(function()
                 while TBT_ESPActive and head.Parent do
-                    local hasBomb = TBT_HasBomb(plr.Character)
+                    local hasBomb = TBT_HasBomb(plr.Character) ~= nil
+                    local isTeam = _isMyTeammate(plr)
                     local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
                     local hp = hum and math.floor(hum.Health) or 0
                     local dist = HRP and math.floor((HRP.Position - head.Position).Magnitude) or 0
-                    lbl.Text = plr.Name
+                    local teamMark = isTeam and "🟦" or "🔴"
+                    lbl.Text = teamMark .. " " .. plr.Name
                                .. (hasBomb and " 💣" or "")
                                .. " | ❤️" .. hp
                                .. " | " .. dist .. "m"
                     if h and h.Parent then
-                        if hasBomb then
-                            h.FillColor = Color3.fromRGB(255, 50, 50)
-                            lbl.TextColor3 = Color3.fromRGB(255, 80, 80)
+                        if hasBomb and isTeam then
+                            h.FillColor = Color3.fromRGB(255, 220, 0)
+                            lbl.TextColor3 = Color3.fromRGB(255, 220, 0)
+                        elseif hasBomb and not isTeam then
+                            h.FillColor = Color3.fromRGB(200, 0, 0)
+                            lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+                        elseif isTeam then
+                            h.FillColor = Color3.fromRGB(80, 160, 255)
+                            lbl.TextColor3 = Color3.fromRGB(150, 200, 255)
                         else
                             h.FillColor = Color3.fromRGB(80, 255, 120)
                             lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -3881,152 +4011,186 @@ elseif currentMapID == _C then
     end)
 
     -- Anti-Bomb (يدفع القنبلة بعيد)
-    -- 🛡️ Anti-Bomb V3 — الحماية الحقيقية
-    -- 3 طبقات: 1) رفض استلام، 2) رمي فوري، 3) نقل لأقرب لاعب
+    -- ══════════════════════════════════════════════════════════════
+    -- 🛡️ Anti-Bomb V4 — مع كشف الفريق (Team Detection)
+    -- ══════════════════════════════════════════════════════════════
+    -- نشيك على player.Team — ما نعطي القنبلة لزملائنا!
+    -- ولا نستخدم __namecall hook (يكشف بسرعة = ban)
+
+    -- ── 👥 Team Detection ──
+    -- نخزن فريقي ونعرف من معي ومن ضدي
+    local function _isTeammate(p)
+        -- نفس الفريق؟ → زميل
+        if not p or p == Player then return false end
+        local myTeam = Player.Team
+        local theirTeam = p.Team
+        if myTeam and theirTeam and myTeam == theirTeam then
+            return true
+        end
+        -- TeamColor فحص إضافي
+        if Player.TeamColor and p.TeamColor and Player.TeamColor == p.TeamColor then
+            return true
+        end
+        return false
+    end
+
+    -- ── 💣 من معه القنبلة الآن ──
+    local function _hasBomb(plr)
+        if not plr.Character then return false, nil end
+        for _, t in pairs(plr.Character:GetChildren()) do
+            if t:IsA("Tool") then
+                local n = t.Name:lower()
+                if n:find("bomb") or n:find("tnt") or n:find("explos") then
+                    return true, t
+                end
+            end
+        end
+        -- Backpack check
+        local bp = plr:FindFirstChildOfClass("Backpack")
+        if bp then
+            for _, t in pairs(bp:GetChildren()) do
+                if t:IsA("Tool") then
+                    local n = t.Name:lower()
+                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
+                        return true, t
+                    end
+                end
+            end
+        end
+        return false, nil
+    end
+
+    -- ── 🎯 أقرب عدو (مش زميل) ──
+    local function _nearestEnemy()
+        local myChar = Player.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return nil end
+        local closest, minDist = nil, math.huge
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= Player and not _isTeammate(p)
+               and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local h = p.Character:FindFirstChildOfClass("Humanoid")
+                if h and h.Health > 0 then
+                    local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
+                    if d < minDist then minDist = d closest = p end
+                end
+            end
+        end
+        return closest
+    end
+
+    -- ══════════════════════════════════════════════
+    -- زر: عرض من في فريقي (للمستخدم)
+    -- ══════════════════════════════════════════════
+    Tabs.Bomb:AddSection("👥 " .. (Lang=="AR" and "كشف الفريق" or "Team Detection"))
+    Tabs.Bomb:AddButton({
+        Title = "👥 " .. (Lang=="AR" and "من معي ومن ضدي؟" or "Who's on my team?"),
+        Description = Lang=="AR" and "يعرض زملاء الفريق والأعداء" or "Shows teammates and enemies",
+        Callback = function()
+            local teammates, enemies = {}, {}
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= Player then
+                    if _isTeammate(p) then
+                        table.insert(teammates, p.Name)
+                    else
+                        table.insert(enemies, p.Name)
+                    end
+                end
+            end
+            local msg = ""
+            if #teammates > 0 then
+                msg = msg .. "🟢 " .. (Lang=="AR" and "معك: " or "Team: ")
+                        .. table.concat(teammates, ", ") .. "\n"
+            end
+            if #enemies > 0 then
+                msg = msg .. "🔴 " .. (Lang=="AR" and "ضدك: " or "Enemies: ")
+                        .. table.concat(enemies, ", ")
+            end
+            if msg == "" then msg = Lang=="AR" and "ما في لاعبين" or "No players" end
+            Notify("👥", msg, 8)
+        end
+    })
+
+    Tabs.Bomb:AddSection("🛡️ " .. (Lang=="AR" and "حماية القنبلة" or "Bomb Protection"))
+
+    -- ══════════════════════════════════════════════
+    -- Anti-Bomb V4 — يحترم الفريق + بدون hook
+    -- ══════════════════════════════════════════════
     Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (رفض القنبلة)" or "Anti Bomb (Reject)"),
-        Description = Lang=="AR" and "يرفض استلام القنبلة + يرميها لو وصلت" or "Reject bomb + drop it instantly",
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (احترام الفريق)" or "Anti Bomb (Team-Aware)"),
+        Description = Lang=="AR" and "يرمي القنبلة لعدو فقط (ليس زميل)" or "Throws bomb to enemy only",
         Default = false
     }):OnChanged(function()
         TBT_AntiBombActive = Options.TBT_AntiBomb.Value
         if TBT_AntiBombActive then
-            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل" or "Anti Bomb ON")
-            -- Layer 1: مراقبة الـ Character و Backpack
-            -- لو دخلت قنبلة، احذفها فوراً (Parent = nil)
+            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل (يحترم الفريق)" or "Anti Bomb ON (team-aware)")
             task.spawn(function()
                 while TBT_AntiBombActive do
                     pcall(function()
-                        local c = Player.Character
-                        local bp = Player:FindFirstChildOfClass("Backpack")
-                        local checked = {}
-
-                        -- شيك Character
-                        if c then
-                            for _, t in pairs(c:GetChildren()) do
-                                if t:IsA("Tool") then
-                                    local n = t.Name:lower()
-                                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
-                                        table.insert(checked, t)
-                                    end
-                                end
-                            end
-                        end
-                        -- شيك Backpack
-                        if bp then
-                            for _, t in pairs(bp:GetChildren()) do
-                                if t:IsA("Tool") then
-                                    local n = t.Name:lower()
-                                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
-                                        table.insert(checked, t)
-                                    end
-                                end
-                            end
-                        end
-
-                        -- معالجة كل قنبلة
-                        for _, bomb in pairs(checked) do
-                            local myHRP = c and c:FindFirstChild("HumanoidRootPart")
-                            if myHRP then
-                                -- إيجاد أقرب لاعب
-                                local closest, minDist = nil, math.huge
-                                for _, p in pairs(Players:GetPlayers()) do
-                                    if p ~= Player and p.Character
-                                       and p.Character:FindFirstChild("HumanoidRootPart") then
-                                        local h2 = p.Character:FindFirstChildOfClass("Humanoid")
-                                        if h2 and h2.Health > 0 then
-                                            local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                                            if d < minDist then minDist = d closest = p end
-                                        end
-                                    end
-                                end
-
-                                if closest then
-                                    -- 1. نقل الـ Parent مباشرة
-                                    pcall(function() bomb.Parent = closest.Character end)
+                        local has, bomb = _hasBomb(Player)
+                        if has and bomb then
+                            local enemy = _nearestEnemy()
+                            if enemy and enemy.Character then
+                                local tHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
+                                local h = bomb:FindFirstChild("Handle")
+                                if tHRP and h then
+                                    -- نقل القنبلة (Parent + firetouchinterest)
+                                    pcall(function() bomb.Parent = enemy.Character end)
                                     task.wait(0.05)
+                                    pcall(function()
+                                        firetouchinterest(tHRP, h, 1)
+                                        firetouchinterest(tHRP, h, 0)
+                                    end)
+                                end
+                            end
+                            -- لو ما في عدو، خل القنبلة معك (لا تنفجر بصاحبك)
+                        end
+                    end)
+                    task.wait(0.2) -- بطيء عشان ما يكشف
+                end
+            end)
+        else
+            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
+        end
+    end)
 
-                                    -- 2. firetouchinterest على الهدف
-                                    local tHRP = closest.Character:FindFirstChild("HumanoidRootPart")
-                                    local h = bomb:FindFirstChild("Handle")
-                                    if tHRP and h then
-                                        pcall(function()
-                                            firetouchinterest(tHRP, h, 1)
-                                            firetouchinterest(tHRP, h, 0)
-                                        end)
-                                    end
-
-                                    -- 3. أطلق أي Remote متعلق بالقنبلة
-                                    for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-                                        if re:IsA("RemoteEvent") or re:IsA("RemoteFunction") then
-                                            local rn = re.Name:lower()
-                                            if rn:find("bomb") or rn:find("transfer") or rn:find("pass") or rn:find("give") then
-                                                pcall(function()
-                                                    if re:IsA("RemoteEvent") then
-                                                        re:FireServer(closest)
-                                                        re:FireServer(closest.Character)
-                                                    else
-                                                        re:InvokeServer(closest)
-                                                    end
-                                                end)
-                                            end
-                                        end
-                                    end
-                                else
-                                    -- لا يوجد لاعب قريب، ارمي القنبلة فقط
-                                    pcall(function() bomb.Parent = workspace end)
-                                    local h = bomb:FindFirstChild("Handle")
-                                    if h then
-                                        pcall(function()
-                                            h.Velocity = Vector3.new(
-                                                math.random(-300, 300),
-                                                200,
-                                                math.random(-300, 300)
-                                            )
-                                        end)
-                                    end
+    -- ══════════════════════════════════════════════
+    -- Auto Bomb — يعطي القنبلة لأقرب عدو تلقائياً
+    -- ══════════════════════════════════════════════
+    local TBT_AutoBombActive = false
+    Tabs.Bomb:AddToggle("TBT_AutoBomb", {
+        Title = "💣 " .. (Lang=="AR" and "Auto Bomb (عدو فقط)" or "Auto Bomb (Enemy Only)"),
+        Description = Lang=="AR" and "ينقل القنبلة لأقرب عدو (ليس زميل)" or "Auto-pass to nearest enemy",
+        Default = false
+    }):OnChanged(function()
+        TBT_AutoBombActive = Options.TBT_AutoBomb.Value
+        if TBT_AutoBombActive then
+            Notify("💣", Lang=="AR" and "Auto Bomb مفعل (للعدو)" or "Auto Bomb ON (enemy)")
+            task.spawn(function()
+                while TBT_AutoBombActive do
+                    pcall(function()
+                        local has, bomb = _hasBomb(Player)
+                        if has and bomb then
+                            local enemy = _nearestEnemy()
+                            if enemy and enemy.Character then
+                                local tHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
+                                local h = bomb:FindFirstChild("Handle")
+                                if tHRP and h then
+                                    pcall(function() bomb.Parent = enemy.Character end)
+                                    task.wait(0.05)
+                                    pcall(function()
+                                        firetouchinterest(tHRP, h, 1)
+                                        firetouchinterest(tHRP, h, 0)
+                                    end)
                                 end
                             end
                         end
                     end)
-                    task.wait(0.05) -- سرعة عالية
+                    task.wait(0.3)
                 end
             end)
-
-            -- Layer 2: هوك على __namecall لرفض FireServer للقنبلة
-            task.spawn(function()
-                pcall(function()
-                    if _getrawmetatable and _hookmetamethod then
-                        local mt = _getrawmetatable(game)
-                        if mt and not _G.BoSqr_BombHooked then
-                            _G.BoSqr_BombHooked = true
-                            _setreadonly(mt, false)
-                            local origNamecall = mt.__namecall
-                            mt.__namecall = _newcclosure(function(self, ...)
-                                if TBT_AntiBombActive then
-                                    local method = (getnamecallmethod and getnamecallmethod()) or ""
-                                    if method == "FireServer" or method == "InvokeServer" then
-                                        local n = (self.Name or ""):lower()
-                                        -- لو remote اسمه يحتوي على bomb/pass/give و الـ args تشير إلينا، نمنعه
-                                        if n:find("bomb") or n:find("pass") or n:find("give") then
-                                            local args = {...}
-                                            for _, a in pairs(args) do
-                                                if a == Player or a == Player.Character then
-                                                    -- محاولة إعطاؤنا القنبلة! نرفض
-                                                    return nil
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                                return origNamecall(self, ...)
-                            end)
-                            _setreadonly(mt, true)
-                        end
-                    end
-                end)
-            end)
         else
-            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
+            Notify("💣", Lang=="AR" and "Auto Bomb أوقف" or "Auto Bomb OFF")
         end
     end)
 
@@ -4336,16 +4500,30 @@ elseif currentMapID == _C then
     end)
 
     Tabs.Config:AddSection("⚙️")
+    local _closeTBT_confirm = false
     Tabs.Config:AddButton({
         Title = "❌ " .. L("close_script"),
+        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
         Callback = function()
+            if not _closeTBT_confirm then
+                _closeTBT_confirm = true
+                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
+                task.delay(5, function() _closeTBT_confirm = false end)
+                return
+            end
             TBT_ESPActive = false
             TBT_AutoTransferActive = false
             TBT_FlyActive = false
             TBT_NoclipActive = false
+            TBT_AntiBombActive = false
+            TBT_AutoBombActive = false
             if TBT_FlyConn then TBT_FlyConn:Disconnect() end
             if TBT_NoclipConn then TBT_NoclipConn:Disconnect() end
             pcall(TBT_ClearESP)
+            -- احذف TapBar
+            pcall(function()
+                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
         end
