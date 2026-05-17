@@ -1,9 +1,24 @@
 -- ══════════════════════════════════════════════
--- Rive Hub | Kingdom World Ultimate Edition
--- Optimized for Weak Devices & Universal Executor Support
+-- Rive Hub | Kingdom World Console Edition
+-- Optimized for Arceus X & Weak Devices (No UI)
 -- ══════════════════════════════════════════════
 
--- ═══ Universal Executor Compatibility Layer ═══
+-- ═══ Global Configuration (Edit these values before executing) ═══
+_G.RiveHub_AutoDriveFarmEnabled = false -- Set to true to enable Auto Drive Farm
+_G.RiveHub_CarSpeed = 100             -- Desired car speed for Auto Drive Farm (e.g., 80-150)
+_G.RiveHub_AntiFineEnabled = false    -- Set to true to enable Anti-Fine (Radar Bypass + Plate Hide)
+_G.RiveHub_AutoPaycheckEnabled = false -- Set to true to enable Auto Paycheck
+_G.RiveHub_WalkSpeed = 16             -- Desired walk speed (default is 16)
+_G.RiveHub_JumpPower = 50             -- Desired jump power (default is 50)
+_G.RiveHub_InfiniteJumpEnabled = false -- Set to true for Infinite Jump
+_G.RiveHub_NoclipEnabled = false      -- Set to true for Noclip
+_G.RiveHub_PlayerESPEnabled = false   -- Set to true for Player ESP
+_G.RiveHub_AntiAFKEnabled = false     -- Set to true for Anti-AFK
+_G.RiveHub_CarFlyEnabled = false      -- Set to true for Car Fly (Use Space to go up, Ctrl to go down)
+
+-- ══════════════════════════════════════════════
+-- Universal Executor Compatibility Layer
+-- ══════════════════════════════════════════════
 local _getgenv = getgenv or function()
     if shared and type(shared) == "table" then return shared end
     return _G
@@ -20,11 +35,12 @@ firetouchinterest = _firetouchinterest
 fireproximityprompt = _fireproximityprompt
 
 -- ══════════════════════════════════════════════════════════════
--- 🛡️ Anti-Detection / Anti-Ban Layer (From User's Working Script)
+-- 🛡️ Anti-Detection / Anti-Ban Layer (Simplified & Robust)
 -- ══════════════════════════════════════════════════════════════
 do
     pcall(function()
         if hookfunction then
+            -- Attempt to hook Kick function to prevent being kicked
             hookfunction(game.Players.LocalPlayer.Kick, function() return task.wait(9e9) end)
         end
     end)
@@ -47,17 +63,6 @@ do
     end)
 end
 
--- Safe GUI parent
-local function _safeGuiParent(gui)
-    local ok = pcall(function()
-        if gethui then gui.Parent = gethui() else gui.Parent = game:GetService("CoreGui") end
-    end)
-    if not ok or not gui.Parent then
-        gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    end
-end
-_G._safeGuiParent = _safeGuiParent
-
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 -- ── Mobile movement cleanup ──
@@ -70,11 +75,10 @@ do
                 if p:IsA("BodyVelocity") or p:IsA("BodyGyro") or p:IsA("BodyMover") or p:IsA("BodyForce") then
                     p:Destroy()
                 end
-                -- Ensure parts are not anchored or have collision disabled by mistake
                 if p:IsA("BasePart") then p.Anchored = false p.CanCollide = true end
             end
             local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 hum.AutoRotate = true hum.PlatformStand = false hum.Sit = false end
+            if hum then hum.WalkSpeed = _G.RiveHub_WalkSpeed hum.JumpPower = _G.RiveHub_JumpPower hum.AutoRotate = true hum.PlatformStand = false hum.Sit = false end
         end)
     end
     cleanChar(plr.Character)
@@ -82,195 +86,12 @@ do
 end
 
 -- ══════════════════════════════════════════════
--- Language Selection (From User's Working Script)
--- ══════════════════════════════════════════════
-local v1 = {
-    ar = {
-        KickMessage = 'هذا السكربت يعمل فقط في لعبة Kingdom World!',
-        WindowName = 'Rive Hub | Kingdom World V2',
-        IntroText = 'Rive Hub | Kingdom World V2',
-        MainTab = 'الرئيسي',
-        PlacesESP = 'Places ESP',
-        EnablePlacesESP = 'تفعيل Places ESP',
-        TeleportPlaces = 'التنقل إلى الأماكن',
-        Teleport = 'الذهاب إلى: ',
-        RandomTeleport = 'نقل عشوائي',
-        AutoReal = 'Auto Real',
-        Speed = 'سرعة المشي',
-        Jump = 'قوة القفزة',
-        InputCustom = 'ادخال سرعة وقفزة يدوياً',
-        Combat = 'القتال',
-        EscapePolice = 'الهروب من الشرطة',
-        TeamESP = 'Team ESP (كل فريق بلون)',
-        EnableTeamESP = 'تفعيل Team ESP',
-        CriminalTP = 'التنقل إلى مجرم عشوائي',
-        Creators = 'المطورون',
-        FollowYoutube = 'تابع قناتنا على يوتيوب',
-        Copied = 'تم النسخ ✅',
-        Loading = 'تم التحديث! تابع قناتنا على يوتيوب لمزيد من الأدوات: hazarobloxscripts',
-        TerrorizeTab = 'تخريب',
-        AnnoyPlayers = 'ازعاج اللاعبين',
-        FarmTab = 'تجميع فلوس',
-        AutoDrive = 'قيادة تلقائية',
-        CarSpeed = 'سرعة السيارة',
-        AntiFine = 'حماية من المخالفات (Anti-Fine)',
-        AutoPaycheck = 'جمع الرواتب تلقائياً',
-        Noclip = 'اختراق الجدران (Noclip)',
-        InfiniteJump = 'قفز لا نهائي',
-        PlayerESP = 'كشف اللاعبين (ESP)',
-        FlingPlayers = 'رمي اللاعبين (Fling All)',
-        FreezePlayers = 'تجميد اللاعبين (Freeze All)',
-        UnfreezePlayers = 'إلغاء تجميد اللاعبين (Unfreeze All)',
-        CloseScript = 'إغلاق السكربت',
-        AntiAFK = 'منع الخمول (Anti-AFK)',
-        CarFly = 'طيران السيارة (Car Fly)',
-        InfiniteNitro = 'نيترو لا نهائي (Infinite Nitro)',
-    },
-    en = {
-        KickMessage = 'This script only works in Kingdom World!',
-        WindowName = 'Rive Hub | Kingdom World V2',
-        IntroText = 'Rive Hub | Kingdom World V2',
-        MainTab = 'Main',
-        PlacesESP = 'Places ESP',
-        EnablePlacesESP = 'Enable Places ESP',
-        TeleportPlaces = 'Teleport to Places',
-        Teleport = 'Go to: ',
-        RandomTeleport = 'Random Teleport',
-        AutoReal = 'Auto Real',
-        Speed = 'Walk Speed',
-        Jump = 'Jump Power',
-        InputCustom = 'Enter Speed & Jump Manually',
-        Combat = 'Combat',
-        EscapePolice = 'Escape Police',
-        TeamESP = 'Team ESP (Colored Teams)',
-        EnableTeamESP = 'Enable Team ESP',
-        CriminalTP = 'Teleport to Random Criminal',
-        Creators = 'Creators',
-        FollowYoutube = 'Follow us on YouTube',
-        Copied = 'Copied ✅',
-        Loading = 'Updated! Follow our YouTube channel for more tools: hazarobloxscripts',
-        TerrorizeTab = 'Terrorize',
-        AnnoyPlayers = 'Annoy Players',
-        FarmTab = 'Money Farm',
-        AutoDrive = 'Auto Drive',
-        CarSpeed = 'Car Speed',
-        AntiFine = 'Anti-Fine Protection',
-        AutoPaycheck = 'Auto Paycheck',
-        Noclip = 'Noclip',
-        InfiniteJump = 'Infinite Jump',
-        PlayerESP = 'Player ESP',
-        FlingPlayers = 'Fling All Players',
-        FreezePlayers = 'Freeze All Players',
-        UnfreezePlayers = 'Unfreeze All Players',
-        CloseScript = 'Close Script',
-        AntiAFK = 'Anti-AFK',
-        CarFly = 'Car Fly',
-        InfiniteNitro = 'Infinite Nitro',
-    },
-}
-local u2 = nil
-
-(function()
-    local _ScreenGui = Instance.new('ScreenGui', game.Players.LocalPlayer:WaitForChild('PlayerGui'))
-    local _Frame = Instance.new('Frame', _ScreenGui)
-
-    _Frame.Size = UDim2.new(0, 250, 0, 150)
-    _Frame.Position = UDim2.new(0.5, -125, 0.5, -75)
-    _Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    _Frame.BorderSizePixel = 2
-    _Frame.BorderColor3 = Color3.fromRGB(0, 170, 255)
-
-    local _TextLabel = Instance.new('TextLabel', _Frame)
-
-    _TextLabel.Size = UDim2.new(1, 0, 0.3, 0)
-    _TextLabel.Position = UDim2.new(0, 0, 0.1, 0)
-    _TextLabel.Text = 'اختر لغتك | Choose Language'
-    _TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    _TextLabel.BackgroundTransparency = 1
-    _TextLabel.Font = Enum.Font.SourceSansBold
-    _TextLabel.TextScaled = true
-    _TextLabel.TextWrapped = true
-
-    local _TextButton = Instance.new('TextButton', _Frame)
-
-    _TextButton.Size = UDim2.new(0.4, 0, 0.3, 0)
-    _TextButton.Position = UDim2.new(0.05, 0, 0.5, 0)
-    _TextButton.Text = 'العربية'
-    _TextButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    _TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    _TextButton.Font = Enum.Font.SourceSansBold
-    _TextButton.BorderSizePixel = 0
-
-    local _TextButton2 = Instance.new('TextButton', _Frame)
-
-    _TextButton2.Size = UDim2.new(0.4, 0, 0.3, 0)
-    _TextButton2.Position = UDim2.new(0.55, 0, 0.5, 0)
-    _TextButton2.Text = 'English'
-    _TextButton2.BackgroundColor3 = Color3.fromRGB(0, 85, 170)
-    _TextButton2.TextColor3 = Color3.fromRGB(255, 255, 255)
-    _TextButton2.Font = Enum.Font.SourceSansBold
-    _TextButton2.BorderSizePixel = 0
-
-    _TextButton.MouseButton1Click:Connect(function()
-        u2 = 'ar'
-        _ScreenGui:Destroy()
-    end)
-    _TextButton2.MouseButton1Click:Connect(function()
-        u2 = 'en'
-        _ScreenGui:Destroy()
-    end)
-end)()
-
-repeat
-    task.wait()
-until u2 ~= nil
-
-local u8 = v1[u2]
-
-if game.PlaceId ~= 96796259580891 then
-    local _ScreenGui = Instance.new('ScreenGui', game.Players.LocalPlayer:WaitForChild('PlayerGui'))
-    local _Frame = Instance.new('Frame', _ScreenGui)
-    _Frame.Size = UDim2.new(0, 250, 0, 100)
-    _Frame.Position = UDim2.new(0.5, -125, 0.5, -50)
-    _Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    _Frame.BorderSizePixel = 2
-    _Frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-    local _TextLabel = Instance.new('TextLabel', _Frame)
-    _TextLabel.Size = UDim2.new(1, 0, 1, 0)
-    _TextLabel.Text = u8.KickMessage
-    _TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    _TextLabel.BackgroundTransparency = 1
-    _TextLabel.Font = Enum.Font.SourceSansBold
-    _TextLabel.TextScaled = true
-    _TextLabel.TextWrapped = true
-    task.wait(5)
-    game.Players.LocalPlayer:Kick(u8.KickMessage)
-    return
-end
-
--- ══════════════════════════════════════════════
--- Load Orion UI (from user's working script)
--- ══════════════════════════════════════════════
-local Orion = loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/Orion/main/source'))()
-
-local Window = Orion:MakeWindow({
-    Name = u8.WindowName,
-    HidePremium = false,
-    SaveConfig = true,
-    ConfigFolder = 'RiveHub',
-    IntroEnabled = true,
-    IntroText = u8.IntroText,
-    IntroIcon = 'http://www.roblox.com/asset/?id=82795327169782', -- Placeholder icon
-})
-
--- ══════════════════════════════════════════════
 -- Services & Variables
 -- ══════════════════════════════════════════════
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -291,56 +112,42 @@ local function GetCarModel()
     return car
 end
 
--- Global States
-local AutoFarmDriveActive = false
-local AutoFarmSpeed = 80
-local AutoFarmConn = nil
-local AntiFineActive = false
-local AutoPaycheckActive = false
-local NoclipActive = false
-local InfiniteJumpActive = false
-local PlayerESPActive = false
-local AntiAFKActive = false
-local CarFlyActive = false
-local InfiniteNitroActive = false
-
 -- ══════════════════════════════════════════════
--- Functions (Optimized for performance & Car Movement Fix)
+-- Core Functions (Optimized for Console-Based Execution)
 -- ══════════════════════════════════════════════
 
--- Auto Drive Farm Logic (Optimized & Fixed Car Movement)
-local function StartAutoFarmDrive(speed)
-    if AutoFarmDriveActive then AutoFarmSpeed = speed return true end
+-- Auto Drive Farm Logic (Fixed Car Movement & Optimized)
+local AutoFarmDriveLoop = nil
+local function StartAutoDriveFarm()
+    if AutoFarmDriveLoop then return end -- Already running
     local seat = GetSeat() 
     if not seat or not seat:IsA("VehicleSeat") then 
-        Orion:MakeNotification({Name = "تنبيه", Content = "يجب أن تكون راكب سيارة أولاً!", Time = 3})
-        return false 
+        warn("Rive Hub: Auto Drive Farm requires you to be in a car!")
+        return 
     end
     
-    AutoFarmDriveActive = true 
-    AutoFarmSpeed = speed
-    Orion:MakeNotification({Name = "تجميع تلقائي", Content = "السيارة تمشي بسرعة "..speed.." وتجمع الفلوس!", Time = 4})
-    
-    AutoFarmConn = RunService.Heartbeat:Connect(function()
-        if not AutoFarmDriveActive or not Character or not Humanoid then return end
+    AutoFarmDriveLoop = RunService.Heartbeat:Connect(function()
+        if not _G.RiveHub_AutoDriveFarmEnabled or not Character or not Humanoid then 
+            if AutoFarmDriveLoop then AutoFarmDriveLoop:Disconnect() AutoFarmDriveLoop = nil end
+            return 
+        end
         local cs = Humanoid.SeatPart 
         if not cs or not cs:IsA("VehicleSeat") then 
-            AutoFarmDriveActive = false 
-            if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end 
+            warn("Rive Hub: Exited car, stopping Auto Drive Farm.")
+            _G.RiveHub_AutoDriveFarmEnabled = false -- Disable toggle
+            if AutoFarmDriveLoop then AutoFarmDriveLoop:Disconnect() AutoFarmDriveLoop = nil end 
             return 
         end
         
-        -- Ensure car physics are not interfered with, only apply throttle/steer
+        -- Apply throttle and gentle steering to simulate driving
         cs.Throttle = 1 
-        cs.Steer = math.sin(tick()*0.5)*0.3 -- Gentle steering to simulate movement
-        cs.MaxSpeed = AutoFarmSpeed 
-        -- Removed direct AssemblyLinearVelocity manipulation to avoid freezing issues
+        cs.Steer = math.sin(tick()*0.5)*0.3 -- Gentle steering for movement
+        cs.MaxSpeed = _G.RiveHub_CarSpeed 
         
-        -- Auto Collect (Optimized: less frequent checks, direct touch)
+        -- Auto Collect (Less frequent checks, direct touch)
         if HRP then
-            -- Only check for money objects every 0.5 seconds to reduce lag
             if RunService.Heartbeat:Wait() % 0.5 < 0.1 then 
-                for _,obj in pairs(workspace:GetChildren()) do -- Check only direct children for common money spawns
+                for _,obj in pairs(Workspace:GetChildren()) do 
                     if obj:IsA("BasePart") then
                         local d = (HRP.Position - obj.Position).Magnitude 
                         if d <= 30 then
@@ -356,40 +163,37 @@ local function StartAutoFarmDrive(speed)
                 end
             end
         end
-    end) 
-    return true
+    end)
+    print("Rive Hub: Auto Drive Farm started at speed " .. _G.RiveHub_CarSpeed .. "!")
 end
 
-local function StopAutoFarmDrive()
-    AutoFarmDriveActive = false 
-    if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end
+local function StopAutoDriveFarm()
+    if AutoFarmDriveLoop then AutoFarmDriveLoop:Disconnect() AutoFarmDriveLoop = nil end
     local seat = GetSeat() 
     if seat and seat:IsA("VehicleSeat") then seat.Throttle = 0 seat.Steer = 0 seat.MaxSpeed = 50 end
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف التجميع التلقائي", Time = 3})
+    print("Rive Hub: Auto Drive Farm stopped.")
 end
 
 -- Anti-Fine Logic (Enhanced: RemoteEvent Hooking + Plate Hiding)
-local AntiFineLoop = nil
 local AntiFineHook = nil
+local AntiFinePlateLoop = nil
 local function StartAntiFine()
-    AntiFineActive = true
+    if AntiFineHook then return end -- Already running
     -- RemoteEvent Hooking to prevent fine events from reaching server
     if _hookmetamethod and _getrawmetatable then
         local mt = _getrawmetatable(game)
         if mt and mt.__namecall then
             _setreadonly(mt, false)
             local oldNamecall = mt.__namecall
-            AntiFineHook = mt.__namecall
+            AntiFineHook = oldNamecall -- Store original for unhooking
             mt.__namecall = _newcclosure(function(self, ...)
                 local method = (getnamecallmethod and getnamecallmethod()) or ""
                 if method == "FireServer" then
                     local args = {...}
-                    -- Common RemoteEvent names for fines/violations (adjust as needed based on game analysis)
-                    local fineEvents = {"SendFine", "ReportViolation", "TrafficViolation", "PoliceReport", "FinePlayer"}
+                    local fineEvents = {"SendFine", "ReportViolation", "TrafficViolation", "PoliceReport", "FinePlayer", "RadarEvent"} -- Added RadarEvent
                     for _, eventName in pairs(fineEvents) do
                         if typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name == eventName then
-                            -- Block the RemoteEvent from firing to the server
-                            return nil 
+                            return nil -- Block the RemoteEvent
                         end
                     end
                 end
@@ -399,9 +203,9 @@ local function StartAntiFine()
         end
     end
 
-    -- Plate Hiding (existing logic)
-    AntiFineLoop = task.spawn(function()
-        while AntiFineActive do
+    -- Plate Hiding
+    AntiFinePlateLoop = task.spawn(function()
+        while _G.RiveHub_AntiFineEnabled do
             pcall(function()
                 local car = GetCarModel()
                 if car then
@@ -413,22 +217,21 @@ local function StartAntiFine()
                     end
                 end
             end)
-            task.wait(2) -- Check less frequently
+            task.wait(2) 
         end
     end)
-    Orion:MakeNotification({Name = "حماية من المخالفات", Content = "تم تفعيل الحماية من المخالفات!", Time = 3})
+    print("Rive Hub: Anti-Fine Protection activated!")
 end
 
 local function StopAntiFine()
-    AntiFineActive = false
-    if AntiFineLoop then task.cancel(AntiFineLoop) AntiFineLoop = nil end
-    -- Restore RemoteEvent hook
     if AntiFineHook and _getrawmetatable then 
         local mt = _getrawmetatable(game) 
         pcall(_setreadonly, mt, false) 
         mt.__namecall = AntiFineHook 
         _setreadonly(mt, true)
+        AntiFineHook = nil
     end
+    if AntiFinePlateLoop then task.cancel(AntiFinePlateLoop) AntiFinePlateLoop = nil end
     pcall(function()
         local car = GetCarModel()
         if car then
@@ -440,15 +243,15 @@ local function StopAntiFine()
             end
         end
     end)
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف الحماية من المخالفات", Time = 3})
+    print("Rive Hub: Anti-Fine Protection deactivated.")
 end
 
--- Auto Paycheck Logic (Optimized)
+-- Auto Paycheck Logic
 local AutoPaycheckLoop = nil
 local function StartAutoPaycheck()
-    AutoPaycheckActive = true
+    if AutoPaycheckLoop then return end
     AutoPaycheckLoop = task.spawn(function()
-        while AutoPaycheckActive do
+        while _G.RiveHub_AutoPaycheckEnabled do
             pcall(function()
                 for _, gui in pairs(Player.PlayerGui:GetDescendants()) do
                     if gui:IsA("TextButton") or gui:IsA("ImageButton") then
@@ -461,24 +264,23 @@ local function StartAutoPaycheck()
                     end
                 end
             end)
-            task.wait(5) -- Check less frequently
+            task.wait(5) 
         end
     end)
-    Orion:MakeNotification({Name = "جمع الرواتب", Content = "تم تفعيل جمع الرواتب تلقائياً!", Time = 3})
+    print("Rive Hub: Auto Paycheck activated!")
 end
 
 local function StopAutoPaycheck()
-    AutoPaycheckActive = false
     if AutoPaycheckLoop then task.cancel(AutoPaycheckLoop) AutoPaycheckLoop = nil end
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف جمع الرواتب", Time = 3})
+    print("Rive Hub: Auto Paycheck deactivated.")
 end
 
 -- Noclip Logic
 local NoclipLoop = nil
 local function StartNoclip()
-    NoclipActive = true
+    if NoclipLoop then return end
     NoclipLoop = task.spawn(function()
-        while NoclipActive and Character do
+        while _G.RiveHub_NoclipEnabled and Character do
             pcall(function()
                 for _, part in pairs(Character:GetDescendants()) do
                     if part:IsA("BasePart") then part.CanCollide = false end
@@ -487,11 +289,10 @@ local function StartNoclip()
             task.wait(0.1)
         end
     end)
-    Orion:MakeNotification({Name = "Noclip", Content = "تم تفعيل اختراق الجدران!", Time = 3})
+    print("Rive Hub: Noclip activated!")
 end
 
 local function StopNoclip()
-    NoclipActive = false
     if NoclipLoop then task.cancel(NoclipLoop) NoclipLoop = nil end
     pcall(function()
         if Character then
@@ -500,34 +301,33 @@ local function StopNoclip()
             end
         end
     end)
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف اختراق الجدران", Time = 3})
+    print("Rive Hub: Noclip deactivated.")
 end
 
 -- Infinite Jump Logic
 local InfiniteJumpConn = nil
 local function StartInfiniteJump()
-    InfiniteJumpActive = true
+    if InfiniteJumpConn then return end
     InfiniteJumpConn = UserInputService.JumpRequest:Connect(function()
-        if InfiniteJumpActive and Humanoid then
+        if _G.RiveHub_InfiniteJumpEnabled and Humanoid then
             Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end)
-    Orion:MakeNotification({Name = "قفز لا نهائي", Content = "تم تفعيل القفز اللانهائي!", Time = 3})
+    print("Rive Hub: Infinite Jump activated!")
 end
 
 local function StopInfiniteJump()
-    InfiniteJumpActive = false
     if InfiniteJumpConn then InfiniteJumpConn:Disconnect() InfiniteJumpConn = nil end
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف القفز اللانهائي", Time = 3})
-end
+    print("Rive Hub: Infinite Jump deactivated.")
+}
 
 -- Player ESP Logic
 local PlayerESPLoop = nil
 local PlayerESPObjects = {}
 local function StartPlayerESP()
-    PlayerESPActive = true
+    if PlayerESPLoop then return end
     PlayerESPLoop = task.spawn(function()
-        while PlayerESPActive do
+        while _G.RiveHub_PlayerESPEnabled do
             pcall(function()
                 for _, p in pairs(Players:GetPlayers()) do
                     if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -558,7 +358,7 @@ local function StartPlayerESP()
                             nameLabel.Parent = nameTag
                             PlayerESPObjects[p.Name] = {Box = box, NameTag = nameTag}
                         end
-                    elseif PlayerESPObjects[p.Name] then -- Cleanup if player leaves or character disappears
+                    elseif PlayerESPObjects[p.Name] then 
                         PlayerESPObjects[p.Name].Box:Destroy()
                         PlayerESPObjects[p.Name].NameTag:Destroy()
                         PlayerESPObjects[p.Name] = nil
@@ -568,11 +368,10 @@ local function StartPlayerESP()
             task.wait(0.5)
         end
     end)
-    Orion:MakeNotification({Name = "كشف اللاعبين", Content = "تم تفعيل كشف اللاعبين!", Time = 3})
+    print("Rive Hub: Player ESP activated!")
 end
 
 local function StopPlayerESP()
-    PlayerESPActive = false
     if PlayerESPLoop then task.cancel(PlayerESPLoop) PlayerESPLoop = nil end
     pcall(function()
         for _, obj in pairs(PlayerESPObjects) do
@@ -581,41 +380,39 @@ local function StopPlayerESP()
         end
         PlayerESPObjects = {}
     end)
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف كشف اللاعبين", Time = 3})
-}
+    print("Rive Hub: Player ESP deactivated.")
+end
 
 -- Anti-AFK Logic
 local AntiAFKLoop = nil
 local function StartAntiAFK()
-    AntiAFKActive = true
+    if AntiAFKLoop then return end
     AntiAFKLoop = task.spawn(function()
-        while AntiAFKActive do
+        while _G.RiveHub_AntiAFKEnabled do
             pcall(function()
                 if Humanoid then
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) -- Simulate jump
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) 
                     task.wait(0.1)
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Running) -- Back to running
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running) 
                 end
             end)
-            task.wait(10) -- Simulate action every 10 seconds
+            task.wait(10) 
         end
     end)
-    Orion:MakeNotification({Name = "Anti-AFK", Content = "تم تفعيل منع الخمول!", Time = 3})
+    print("Rive Hub: Anti-AFK activated!")
 end
 
 local function StopAntiAFK()
-    AntiAFKActive = false
     if AntiAFKLoop then task.cancel(AntiAFKLoop) AntiAFKLoop = nil end
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف منع الخمول", Time = 3})
+    print("Rive Hub: Anti-AFK deactivated.")
 end
 
 -- Car Fly Logic
 local CarFlyLoop = nil
 local function StartCarFly()
-    CarFlyActive = true
-    Orion:MakeNotification({Name = "طيران السيارة", Content = "تم تفعيل طيران السيارة! (Space للارتفاع, Ctrl للهبوط)", Time = 3})
+    if CarFlyLoop then return end
     CarFlyLoop = RunService.Heartbeat:Connect(function()
-        if CarFlyActive and GetSeat() and GetCarModel() then
+        if _G.RiveHub_CarFlyEnabled and GetSeat() and GetCarModel() then
             local car = GetCarModel()
             local seat = GetSeat()
             if car and seat then
@@ -629,10 +426,10 @@ local function StartCarFly()
             end
         end
     end)
+    print("Rive Hub: Car Fly activated! (Space to go up, Ctrl to go down)")
 end
 
 local function StopCarFly()
-    CarFlyActive = false
     if CarFlyLoop then CarFlyLoop:Disconnect() CarFlyLoop = nil end
     pcall(function()
         local car = GetCarModel()
@@ -641,298 +438,52 @@ local function StopCarFly()
             if bodyVelocity then bodyVelocity:Destroy() end
         end
     end)
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف طيران السيارة", Time = 3})
+    print("Rive Hub: Car Fly deactivated.")
 end
 
--- Infinite Nitro Logic (Placeholder - requires game-specific RemoteEvent analysis)
-local InfiniteNitroLoop = nil
-local function StartInfiniteNitro()
-    InfiniteNitroActive = true
-    Orion:MakeNotification({Name = "نيترو لا نهائي", Content = "تم تفعيل نيترو لا نهائي! (قد لا يعمل في بعض السيارات)", Time = 3})
-    -- This part needs specific RemoteEvent analysis for Kingdom World's nitro system.
-    -- For now, it's a placeholder. If the game has a client-sided nitro value, we can try to set it.
-    -- If it's server-sided, we'd need to find and spam the FireServer RemoteEvent for nitro.
-    -- Example (highly speculative, requires game analysis):
-    -- InfiniteNitroLoop = RunService.Heartbeat:Connect(function()
-    --     if InfiniteNitroActive and GetCarModel() then
-    --         local car = GetCarModel()
-    --         local nitroRemote = game:GetService("ReplicatedStorage"):FindFirstChild("NitroRemote") -- Example RemoteEvent name
-    --         if nitroRemote then
-    --             pcall(function() nitroRemote:FireServer("ActivateNitro", math.huge) end) -- Spamming with huge value
-    --         end
-    --     end
-    -- end)
+-- ══════════════════════════════════════════════
+-- Initialization and Toggle Management
+-- ══════════════════════════════════════════════
+
+-- Function to apply settings from _G variables
+local function ApplySettings()
+    if _G.RiveHub_AutoDriveFarmEnabled then StartAutoDriveFarm() else StopAutoDriveFarm() end
+    if _G.RiveHub_AntiFineEnabled then StartAntiFine() else StopAntiFine() end
+    if _G.RiveHub_AutoPaycheckEnabled then StartAutoPaycheck() else StopAutoPaycheck() end
+    if _G.RiveHub_NoclipEnabled then StartNoclip() else StopNoclip() end
+    if _G.RiveHub_InfiniteJumpEnabled then StartInfiniteJump() else StopInfiniteJump() end
+    if _G.RiveHub_PlayerESPEnabled then StartPlayerESP() else StopPlayerESP() end
+    if _G.RiveHub_AntiAFKEnabled then StartAntiAFK() else StopAntiAFK() end
+    if _G.RiveHub_CarFlyEnabled then StartCarFly() else StopCarFly() end
+
+    -- Apply WalkSpeed and JumpPower directly
+    if Humanoid then
+        Humanoid.WalkSpeed = _G.RiveHub_WalkSpeed
+        Humanoid.JumpPower = _G.RiveHub_JumpPower
+    end
 end
 
-local function StopInfiniteNitro()
-    InfiniteNitroActive = false
-    if InfiniteNitroLoop then InfiniteNitroLoop:Disconnect() InfiniteNitroLoop = nil end
-    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف نيترو لا نهائي", Time = 3})
-end
+-- Initial application of settings
+ApplySettings()
 
--- Teleport Locations (Example, adjust as needed)
-local TeleportLocations = {
-    {"Spawn", Vector3.new(0, 10, 0)},
-    {"City Center", Vector3.new(1000, 10, 500)},
-    {"Farming Zone 1", Vector3.new(-500, 10, -1000)},
-}
-
-local function TeleportToLocation(pos)
-    if HRP then
-        HRP.CFrame = CFrame.new(pos)
-        Orion:MakeNotification({Name = "✅", Content = "تم الانتقال!", Time = 3})
+-- Listen for changes in _G variables (for console toggling)
+_G.RiveHub_ToggleFeature = function(featureName, state)
+    if _G["RiveHub_" .. featureName .. "Enabled"] ~= nil then
+        _G["RiveHub_" .. featureName .. "Enabled"] = state
+        ApplySettings()
+        print("Rive Hub: " .. featureName .. " toggled to " .. tostring(state))
     else
-        Orion:MakeNotification({Name = "⚠️", Content = "لا يمكن الانتقال، الشخصية غير موجودة.", Time = 3})
+        warn("Rive Hub: Feature '" .. featureName .. "' not found.")
     end
 end
 
--- Trolling Functions
-local function FlingPlayer(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
-    local targetHRP = targetPlayer.Character.HumanoidRootPart
-    local bv = Instance.new("BodyVelocity")
-    bv.Velocity = Vector3.new(math.random(-500, 500), 500, math.random(-500, 500))
-    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bv.Parent = targetHRP
-    task.delay(2, function() bv:Destroy() end)
-    Orion:MakeNotification({Name = "😈", Content = "تم رمي "..targetPlayer.Name.."!", Time = 3})
+print("══════════════════════════════════════════════")
+print("Rive Hub | Kingdom World Console Edition Loaded!")
+print("Edit _G.RiveHub_ variables at the top of the script or use _G.RiveHub_ToggleFeature(featureName, state) in console.")
+print("Example: _G.RiveHub_ToggleFeature("AutoDriveFarm", true)")
+print("══════════════════════════════════════════════")
+
+-- Check if in correct game
+if game.PlaceId ~= 96796259580891 then -- Kingdom World PlaceId
+    warn("Rive Hub: This script is intended for Kingdom World (PlaceId: 96796259580891). You are in a different game.")
 end
-
-local function FreezePlayer(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then return end
-    for _,p in pairs(targetPlayer.Character:GetDescendants()) do if p:IsA("BasePart") then p.Anchored=true end end
-    Orion:MakeNotification({Name = "🧊", Content = "تم تجميد "..targetPlayer.Name.."!", Time = 3})
-end
-
-local function UnfreezePlayer(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then return end
-    for _,p in pairs(targetPlayer.Character:GetDescendants()) do if p:IsA("BasePart") then p.Anchored=false end end
-    Orion:MakeNotification({Name = "🔓", Content = "تم إلغاء تجميد "..targetPlayer.Name.."!", Time = 3})
-end
-
--- ══════════════════════════════════════════════
--- UI Tabs and Elements
--- ══════════════════════════════════════════════
-
-local MainTab = Window:MakeTab({
-    Name = u8.MainTab,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
--- Farm Tab
-local FarmTab = Window:MakeTab({
-    Name = u8.FarmTab,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-FarmTab:AddSection({Name = u8.FarmTab})
-
-FarmTab:AddToggle({
-    Name = u8.AutoDrive,
-    Default = false,
-    Callback = function(state)
-        if state then StartAutoFarmDrive(AutoFarmSpeed) else StopAutoFarmDrive() end
-    end,
-})
-
-FarmTab:AddSlider({
-    Name = u8.CarSpeed,
-    Default = 80,
-    Min = 20,
-    Max = 250,
-    Rounding = 0,
-    Callback = function(Value)
-        AutoFarmSpeed = Value
-    end
-})
-
-FarmTab:AddToggle({
-    Name = u8.AntiFine,
-    Default = false,
-    Callback = function(state)
-        if state then StartAntiFine() else StopAntiFine() end
-    end,
-})
-
-FarmTab:AddToggle({
-    Name = u8.AutoPaycheck,
-    Default = false,
-    Callback = function(state)
-        if state then StartAutoPaycheck() else StopAutoPaycheck() end
-    end,
-})
-
-FarmTab:AddToggle({
-    Name = u8.CarFly,
-    Default = false,
-    Callback = function(state)
-        if state then StartCarFly() else StopCarFly() end
-    end,
-})
-
-FarmTab:AddToggle({
-    Name = u8.InfiniteNitro,
-    Default = false,
-    Callback = function(state)
-        if state then StartInfiniteNitro() else StopInfiniteNitro() end
-    end,
-})
-
--- Player Tab
-local PlayerTab = Window:MakeTab({
-    Name = u8.PlayerTab,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-PlayerTab:AddSection({Name = u8.PlayerTab})
-
-PlayerTab:AddSlider({
-    Name = u8.Speed,
-    Default = 16,
-    Min = 16,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(Value)
-        if Humanoid then Humanoid.WalkSpeed = Value end
-    end
-})
-
-PlayerTab:AddSlider({
-    Name = u8.Jump,
-    Default = 50,
-    Min = 50,
-    Max = 200,
-    Rounding = 0,
-    Callback = function(Value)
-        if Humanoid then Humanoid.JumpPower = Value end
-    end
-})
-
-PlayerTab:AddToggle({
-    Name = u8.Noclip,
-    Default = false,
-    Callback = function(state)
-        if state then StartNoclip() else StopNoclip() end
-    end,
-})
-
-PlayerTab:AddToggle({
-    Name = u8.InfiniteJump,
-    Default = false,
-    Callback = function(state)
-        if state then StartInfiniteJump() else StopInfiniteJump() end
-    end,
-})
-
-PlayerTab:AddToggle({
-    Name = u8.AntiAFK,
-    Default = false,
-    Callback = function(state)
-        if state then StartAntiAFK() else StopAntiAFK() end
-    end,
-})
-
--- Teleport Tab
-local TeleportTab = Window:MakeTab({
-    Name = u8.TeleportPlaces,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-TeleportTab:AddSection({Name = u8.TeleportPlaces})
-
-for _, loc in pairs(TeleportLocations) do
-    TeleportTab:AddButton({
-        Name = u8.Teleport .. loc[1],
-        Callback = function()
-            TeleportToLocation(loc[2])
-        end,
-    })
-end
-
--- Trolling Tab
-local TrollingTab = Window:MakeTab({
-    Name = u8.TerrorizeTab,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-TrollingTab:AddSection({Name = u8.TerrorizeTab})
-
-TrollingTab:AddButton({
-    Name = u8.FlingPlayers,
-    Callback = function()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= Player then FlingPlayer(p) end
-        end
-    end,
-})
-
-TrollingTab:AddButton({
-    Name = u8.FreezePlayers,
-    Callback = function()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= Player then FreezePlayer(p) end
-        end
-    end,
-})
-
-TrollingTab:AddButton({
-    Name = u8.UnfreezePlayers,
-    Callback = function()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= Player then UnfreezePlayer(p) end
-        end
-    end,
-})
-
--- Visuals Tab
-local VisualsTab = Window:MakeTab({
-    Name = u8.PlayerESP,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-VisualsTab:AddSection({Name = u8.PlayerESP})
-
-VisualsTab:AddToggle({
-    Name = u8.EnableTeamESP,
-    Default = false,
-    Callback = function(state)
-        if state then StartPlayerESP() else StopPlayerESP() end
-    end,
-})
-
--- Misc Tab
-local MiscTab = Window:MakeTab({
-    Name = u8.Misc,
-    Icon = 'rbxassetid://4483345998', -- Placeholder icon
-    PremiumOnly = false,
-})
-
-MiscTab:AddSection({Name = u8.Misc})
-
-MiscTab:AddButton({
-    Name = u8.CloseScript,
-    Callback = function()
-        StopAutoFarmDrive()
-        StopAntiFine()
-        StopAutoPaycheck()
-        StopNoclip()
-        StopInfiniteJump()
-        StopPlayerESP()
-        StopAntiAFK()
-        StopCarFly()
-        StopInfiniteNitro()
-        Window:Destroy()
-    end
-})
-
-Orion:MakeNotification({
-    Name = "Rive Hub | Kingdom World",
-    Content = "تم تحميل السكربت بنجاح!",
-    Time = 5
-})
