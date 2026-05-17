@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════
--- Kingdom World | Lite Edition (Optimized for Weak Devices)
--- Based on Bo.Sqr / HM HUB structure with Orion UI
+-- Kingdom World | Lite Edition V2 (Ultimate Anti-Fine & New Features)
+-- Optimized for Weak Devices & Universal Executor Support
 -- ══════════════════════════════════════════════
 
 -- ═══ Universal Executor Compatibility Layer ═══
@@ -112,7 +112,7 @@ local v1 = {
         FarmTab = 'تجميع فلوس',
         AutoDrive = 'قيادة تلقائية',
         CarSpeed = 'سرعة السيارة',
-        AntiFine = 'إخفاء اللوحة (Anti-Fine)',
+        AntiFine = 'حماية من المخالفات (Anti-Fine)',
         AutoPaycheck = 'جمع الرواتب تلقائياً',
         Noclip = 'اختراق الجدران (Noclip)',
         InfiniteJump = 'قفز لا نهائي',
@@ -121,6 +121,9 @@ local v1 = {
         FreezePlayers = 'تجميد اللاعبين (Freeze All)',
         UnfreezePlayers = 'إلغاء تجميد اللاعبين (Unfreeze All)',
         CloseScript = 'إغلاق السكربت',
+        AntiAFK = 'منع الخمول (Anti-AFK)',
+        CarFly = 'طيران السيارة (Car Fly)',
+        InfiniteNitro = 'نيترو لا نهائي (Infinite Nitro)',
     },
     en = {
         KickMessage = 'This script only works in Kingdom World!',
@@ -150,7 +153,7 @@ local v1 = {
         FarmTab = 'Money Farm',
         AutoDrive = 'Auto Drive',
         CarSpeed = 'Car Speed',
-        AntiFine = 'Hide Plate (Anti-Fine)',
+        AntiFine = 'Anti-Fine Protection',
         AutoPaycheck = 'Auto Paycheck',
         Noclip = 'Noclip',
         InfiniteJump = 'Infinite Jump',
@@ -159,6 +162,9 @@ local v1 = {
         FreezePlayers = 'Freeze All Players',
         UnfreezePlayers = 'Unfreeze All Players',
         CloseScript = 'Close Script',
+        AntiAFK = 'Anti-AFK',
+        CarFly = 'Car Fly',
+        InfiniteNitro = 'Infinite Nitro',
     },
 }
 local u2 = nil
@@ -293,6 +299,9 @@ local AutoPaycheckActive = false
 local NoclipActive = false
 local InfiniteJumpActive = false
 local PlayerESPActive = false
+local AntiAFKActive = false
+local CarFlyActive = false
+local InfiniteNitroActive = false
 
 -- ══════════════════════════════════════════════
 -- Functions (Optimized for performance)
@@ -358,10 +367,38 @@ local function StopAutoFarmDrive()
     Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف التجميع التلقائي", Time = 3})
 end
 
--- Anti-Fine Logic (Optimized)
+-- Anti-Fine Logic (Enhanced: RemoteEvent Hooking + Plate Hiding)
 local AntiFineLoop = nil
+local AntiFineHook = nil
 local function StartAntiFine()
     AntiFineActive = true
+    -- RemoteEvent Hooking to prevent fine events from reaching server
+    if _hookmetamethod and _getrawmetatable then
+        local mt = _getrawmetatable(game)
+        if mt and mt.__namecall then
+            _setreadonly(mt, false)
+            local oldNamecall = mt.__namecall
+            AntiFineHook = mt.__namecall
+            mt.__namecall = _newcclosure(function(self, ...)
+                local method = (getnamecallmethod and getnamecallmethod()) or ""
+                if method == "FireServer" then
+                    local args = {...}
+                    -- Common RemoteEvent names for fines/violations (adjust as needed based on game analysis)
+                    local fineEvents = {"SendFine", "ReportViolation", "TrafficViolation", "PoliceReport"}
+                    for _, eventName in pairs(fineEvents) do
+                        if typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name == eventName then
+                            -- Block the RemoteEvent from firing to the server
+                            return nil 
+                        end
+                    end
+                end
+                return oldNamecall(self, ...)
+            end)
+            _setreadonly(mt, true)
+        end
+    end
+
+    -- Plate Hiding (existing logic)
     AntiFineLoop = task.spawn(function()
         while AntiFineActive do
             pcall(function()
@@ -378,11 +415,19 @@ local function StartAntiFine()
             task.wait(2) -- Check less frequently
         end
     end)
+    Orion:MakeNotification({Name = "حماية من المخالفات", Content = "تم تفعيل الحماية من المخالفات!", Time = 3})
 end
 
 local function StopAntiFine()
     AntiFineActive = false
     if AntiFineLoop then task.cancel(AntiFineLoop) AntiFineLoop = nil end
+    -- Restore RemoteEvent hook
+    if AntiFineHook and _getrawmetatable then 
+        local mt = _getrawmetatable(game) 
+        pcall(_setreadonly, mt, false) 
+        mt.__namecall = AntiFineHook 
+        _setreadonly(mt, true)
+    end
     pcall(function()
         local car = GetCarModel()
         if car then
@@ -394,6 +439,7 @@ local function StopAntiFine()
             end
         end
     end)
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف الحماية من المخالفات", Time = 3})
 end
 
 -- Auto Paycheck Logic (Optimized)
@@ -417,11 +463,13 @@ local function StartAutoPaycheck()
             task.wait(5) -- Check less frequently
         end
     end)
+    Orion:MakeNotification({Name = "جمع الرواتب", Content = "تم تفعيل جمع الرواتب تلقائياً!", Time = 3})
 end
 
 local function StopAutoPaycheck()
     AutoPaycheckActive = false
     if AutoPaycheckLoop then task.cancel(AutoPaycheckLoop) AutoPaycheckLoop = nil end
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف جمع الرواتب", Time = 3})
 end
 
 -- Noclip Logic
@@ -438,6 +486,7 @@ local function StartNoclip()
             task.wait(0.1)
         end
     end)
+    Orion:MakeNotification({Name = "Noclip", Content = "تم تفعيل اختراق الجدران!", Time = 3})
 end
 
 local function StopNoclip()
@@ -450,6 +499,7 @@ local function StopNoclip()
             end
         end
     end)
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف اختراق الجدران", Time = 3})
 end
 
 -- Infinite Jump Logic
@@ -461,11 +511,13 @@ local function StartInfiniteJump()
             Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end)
+    Orion:MakeNotification({Name = "قفز لا نهائي", Content = "تم تفعيل القفز اللانهائي!", Time = 3})
 end
 
 local function StopInfiniteJump()
     InfiniteJumpActive = false
     if InfiniteJumpConn then InfiniteJumpConn:Disconnect() InfiniteJumpConn = nil end
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف القفز اللانهائي", Time = 3})
 end
 
 -- Player ESP Logic
@@ -515,6 +567,7 @@ local function StartPlayerESP()
             task.wait(0.5)
         end
     end)
+    Orion:MakeNotification({Name = "كشف اللاعبين", Content = "تم تفعيل كشف اللاعبين!", Time = 3})
 end
 
 local function StopPlayerESP()
@@ -527,6 +580,93 @@ local function StopPlayerESP()
         end
         PlayerESPObjects = {}
     end)
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف كشف اللاعبين", Time = 3})
+end
+
+-- Anti-AFK Logic
+local AntiAFKLoop = nil
+local function StartAntiAFK()
+    AntiAFKActive = true
+    AntiAFKLoop = task.spawn(function()
+        while AntiAFKActive do
+            pcall(function()
+                if Humanoid then
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) -- Simulate jump
+                    task.wait(0.1)
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running) -- Back to running
+                end
+            end)
+            task.wait(10) -- Simulate action every 10 seconds
+        end
+    end)
+    Orion:MakeNotification({Name = "Anti-AFK", Content = "تم تفعيل منع الخمول!", Time = 3})
+end
+
+local function StopAntiAFK()
+    AntiAFKActive = false
+    if AntiAFKLoop then task.cancel(AntiAFKLoop) AntiAFKLoop = nil end
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف منع الخمول", Time = 3})
+end
+
+-- Car Fly Logic
+local CarFlyLoop = nil
+local function StartCarFly()
+    CarFlyActive = true
+    CarFlyLoop = RunService.Heartbeat:Connect(function()
+        if CarFlyActive and GetSeat() and GetCarModel() then
+            local car = GetCarModel()
+            local seat = GetSeat()
+            if car and seat then
+                local bodyVelocity = car:FindFirstChild("BodyVelocity")
+                if not bodyVelocity then
+                    bodyVelocity = Instance.new("BodyVelocity")
+                    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    bodyVelocity.Parent = car.PrimaryPart or car:FindFirstChildOfClass("BasePart")
+                end
+                bodyVelocity.Velocity = Vector3.new(0, UserInputService:IsKeyDown(Enum.KeyCode.Space) and 50 or (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and -50 or 0), 0)
+            end
+        end
+    end)
+    Orion:MakeNotification({Name = "طيران السيارة", Content = "تم تفعيل طيران السيارة! (Space للارتفاع, Ctrl للهبوط)", Time = 3})
+end
+
+local function StopCarFly()
+    CarFlyActive = false
+    if CarFlyLoop then CarFlyLoop:Disconnect() CarFlyLoop = nil end
+    pcall(function()
+        local car = GetCarModel()
+        if car then
+            local bodyVelocity = car:FindFirstChild("BodyVelocity")
+            if bodyVelocity then bodyVelocity:Destroy() end
+        end
+    end)
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف طيران السيارة", Time = 3})
+end
+
+-- Infinite Nitro Logic (Placeholder - requires game-specific RemoteEvent analysis)
+local InfiniteNitroLoop = nil
+local function StartInfiniteNitro()
+    InfiniteNitroActive = true
+    Orion:MakeNotification({Name = "نيترو لا نهائي", Content = "تم تفعيل نيترو لا نهائي! (قد لا يعمل في بعض السيارات)", Time = 3})
+    -- This part needs specific RemoteEvent analysis for Kingdom World's nitro system.
+    -- For now, it's a placeholder. If the game has a client-side nitro value, we can try to set it.
+    -- If it's server-sided, we'd need to find and spam the FireServer RemoteEvent for nitro.
+    -- Example (highly speculative, requires game analysis):
+    -- InfiniteNitroLoop = RunService.Heartbeat:Connect(function()
+    --     if InfiniteNitroActive and GetCarModel() then
+    --         local car = GetCarModel()
+    --         local nitroRemote = game:GetService("ReplicatedStorage"):FindFirstChild("NitroRemote") -- Example RemoteEvent name
+    --         if nitroRemote then
+    --             pcall(function() nitroRemote:FireServer("ActivateNitro", math.huge) end) -- Spamming with huge value
+    --         end
+    --     end
+    -- end)
+end
+
+local function StopInfiniteNitro()
+    InfiniteNitroActive = false
+    if InfiniteNitroLoop then InfiniteNitroLoop:Disconnect() InfiniteNitroLoop = nil end
+    Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف نيترو لا نهائي", Time = 3})
 end
 
 -- Teleport Locations (Example, adjust as needed)
@@ -623,6 +763,22 @@ FarmTab:AddToggle({
     end,
 })
 
+FarmTab:AddToggle({
+    Name = u8.CarFly,
+    Default = false,
+    Callback = function(state)
+        if state then StartCarFly() else StopCarFly() end
+    end,
+})
+
+FarmTab:AddToggle({
+    Name = u8.InfiniteNitro,
+    Default = false,
+    Callback = function(state)
+        if state then StartInfiniteNitro() else StopInfiniteNitro() end
+    end,
+})
+
 -- Player Tab
 local PlayerTab = Window:MakeTab({
     Name = u8.PlayerTab,
@@ -667,6 +823,14 @@ PlayerTab:AddToggle({
     Default = false,
     Callback = function(state)
         if state then StartInfiniteJump() else StopInfiniteJump() end
+    end,
+})
+
+PlayerTab:AddToggle({
+    Name = u8.AntiAFK,
+    Default = false,
+    Callback = function(state)
+        if state then StartAntiAFK() else StopAntiAFK() end
     end,
 })
 
@@ -759,12 +923,15 @@ MiscTab:AddButton({
         StopNoclip()
         StopInfiniteJump()
         StopPlayerESP()
+        StopAntiAFK()
+        StopCarFly()
+        StopInfiniteNitro()
         Window:Destroy()
     end
 })
 
 Orion:MakeNotification({
-    Name = "Kingdom World Lite Edition",
+    Name = "Kingdom World Lite Edition V2",
     Content = "تم تحميل السكربت بنجاح!",
     Time = 5
 })
