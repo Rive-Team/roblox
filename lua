@@ -882,7 +882,7 @@ if currentMapID == _A then
         local hrp=plr.Character:FindFirstChild("HumanoidRootPart") local head=plr.Character:FindFirstChild("Head")
         if not hrp or not head then return end
         local bb=Instance.new("BillboardGui") bb.Name="ESP_Box" bb.Size=UDim2.new(0,50,0,80) bb.Adornee=hrp bb.AlwaysOnTop=true bb.Enabled=false bb.Parent=head
-        local bf=Instance.new("Frame") bf.Name="BoxFrame" bf.Size=UDim2.new(1,0,1,0) bf.BackgroundTransparency=0.7 bf.BackgroundColor3=Color3.fromRGB(0,0,0) bf.BorderSizePixel=0 bf.Parent=bb
+        local bf=Instance.new("Frame") bf.Name="BoxFrame" bf.Size=UDim2.new(1,0,1,0) bf.BackgroundTransparency=1 bf.BorderSizePixel=0 bf.Parent=bb local stk=Instance.new("UIStroke") stk.Color=getPlayerColor(plr) stk.Thickness=2 stk.Transparency=0 stk.Parent=bf
         local tl=Instance.new("Frame") tl.Name="TopLine" tl.Size=UDim2.new(1,0,0,3) tl.BackgroundColor3=getPlayerColor(plr) tl.BackgroundTransparency=0 tl.BorderSizePixel=0 tl.Parent=bf
         local nl=Instance.new("TextLabel") nl.Name="NameLabel" nl.Size=UDim2.new(1,0,0,16) nl.Position=UDim2.new(0,0,0,-20) nl.BackgroundColor3=Color3.fromRGB(0,0,0) nl.BackgroundTransparency=0.3 nl.TextColor3=Color3.fromRGB(255,255,255) nl.TextSize=11 nl.Font=Enum.Font.GothamBold nl.Text=plr.Name nl.Parent=bf
         local rl=Instance.new("TextLabel") rl.Name="RoleLabel" rl.Size=UDim2.new(1,0,0,14) rl.Position=UDim2.new(0,0,1,0) rl.BackgroundColor3=Color3.fromRGB(0,0,0) rl.BackgroundTransparency=0.4 rl.TextColor3=getPlayerColor(plr) rl.TextSize=10 rl.Font=Enum.Font.GothamSemibold rl.Parent=bf
@@ -1165,8 +1165,26 @@ if currentMapID == _A then
             FOV_Circle.Position=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
             FOV_Circle.Color=Color3.fromRGB(255,80,160)
         else FOV_Circle.Visible=false end
-        -- Aimbot
-        if AIMBOT_ENABLED then local t=getClosestKiller() if t then aimAt(t) if AUTO_SHOOT then local tool=LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool") if tool then tool:Activate() end end end end
+        -- Aimbot + Auto Shoot
+        if AIMBOT_ENABLED then
+            local t = getClosestKiller()
+            if t then aimAt(t) end
+        end
+        -- AutoShoot - يطلق على القاتل تلقائياً (مستقل عن Aimbot)
+        if AUTO_SHOOT then
+            local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            if tool then
+                local t = getClosestKiller()
+                if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") then
+                    -- وجه الكاميرا نحو القاتل قبل الإطلاق (لضمان الإصابة)
+                    local targetPart = t.Character:FindFirstChild(AIM_PART or "HumanoidRootPart")
+                    if targetPart then
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+                    end
+                    pcall(function() tool:Activate() end)
+                end
+            end
+        end
         -- Tracers
         if TRACER_ENABLED then
             for p,l in pairs(Tracers) do
@@ -1283,11 +1301,11 @@ if currentMapID == _A then
     local FovCircleToggle = Tabs.Combat:AddToggle("MM2_FovCircle", { Title = "⭕ دائرة FOV", Default = true })
     FovCircleToggle:OnChanged(function() FOV_CIRCLE = Options.MM2_FovCircle.Value end)
     local AimSmooth = Tabs.Combat:AddSlider("MM2_AimSmooth", {
-        Title = "🎚️ سلاسة التقفيل", Min = 1, Max = 100, Default = 15, Rounding = 1,
+        Title = "🎚️ سلاسة التقفيل", Min = 1, Max = 100, Default = 15, Rounding = 5,
         Callback = function(v) AIM_SMOOTHNESS = v/100 end
     })
     local AimFovSlider = Tabs.Combat:AddSlider("MM2_AimFov", {
-        Title = "📐 نطاق FOV (px)", Min = 50, Max = 400, Default = 150, Rounding = 0,
+        Title = "📐 نطاق FOV (px)", Min = 50, Max = 400, Default = 150, Rounding = 10,
         Callback = function(v) AIM_FOV = v end
     })
     local AimPartDrop = Tabs.Combat:AddDropdown("MM2_AimPart", {
@@ -1966,7 +1984,7 @@ if currentMapID == _A then
         end
     end)
 
-    -- Coin ESP (يضوي الكوينز - يفحص باستمرار)
+    -- Coin ESP - يضوي كل العملات في الخريطة (يدعم Coin & Coin_Server)
     local _coinESPMap = {}
     local _coinESPActive = false
     Tabs.Coins:AddToggle("MM2_CoinESPNew", {
@@ -1976,18 +1994,19 @@ if currentMapID == _A then
     }):OnChanged(function()
         _coinESPActive = Options.MM2_CoinESPNew.Value
         if _coinESPActive then
-            Notify("💰", Lang=="AR" and "Coin ESP مفعل!" or "Coin ESP ON")
+            Notify("💰", Lang=="AR" and "Coin ESP مفعل" or "Coin ESP ON")
             task.spawn(function()
                 while _coinESPActive do
                     pcall(function()
-                        -- ابحث في كل الـ workspace عن الكوينز (مش بس CoinContainer)
+                        -- ابحث في كل الـ workspace بعمق
                         local function findCoins(parent, depth)
                             depth = depth or 0
-                            if depth > 4 then return end
+                            if depth > 5 then return end
                             for _, child in pairs(parent:GetChildren()) do
                                 if child:IsA("BasePart") then
                                     local cn = child.Name
-                                    if (cn == "Coin" or cn == "Coin_Server" or cn:lower():find("coin"))
+                                    if (cn == "Coin" or cn == "Coin_Server"
+                                       or cn:lower():find("coin"))
                                        and not _coinESPMap[child] then
                                         local h = Instance.new("Highlight")
                                         h.Name = "BoSqr_CoinHL"
@@ -2000,34 +2019,38 @@ if currentMapID == _A then
                                         _coinESPMap[child] = h
                                     end
                                 end
-                                if child:IsA("Model") or child:IsA("Folder")
-                                   or (child:IsA("BasePart") == false and child:GetChildren()[1]) then
+                                if child:IsA("Model") or child:IsA("Folder") then
                                     findCoins(child, depth + 1)
                                 end
                             end
                         end
                         findCoins(workspace, 0)
-                        -- نظف الـ highlights القديمة لأشياء انحذفت
+                        -- نظف الـ highlights القديمة
                         for coin, h in pairs(_coinESPMap) do
-                            if not coin.Parent or not coin:IsDescendantOf(workspace) then
-                                pcall(function() h:Destroy() end)
+                            if not coin or not coin.Parent then
+                                pcall(function() if h then h:Destroy() end end)
                                 _coinESPMap[coin] = nil
                             end
                         end
                     end)
-                    task.wait(1) -- فحص كل ثانية
+                    task.wait(1)
                 end
-                -- cleanup عند الإيقاف
-                for _, h in pairs(_coinESPMap) do if h then pcall(function() h:Destroy() end) end end
+                for _, h in pairs(_coinESPMap) do
+                    pcall(function() if h then h:Destroy() end end)
+                end
                 _coinESPMap = {}
             end)
         else
             _coinESPActive = false
+            for _, h in pairs(_coinESPMap) do
+                pcall(function() if h then h:Destroy() end end)
+            end
+            _coinESPMap = {}
             Notify("💰", Lang=="AR" and "Coin ESP أوقف" or "Coin ESP OFF")
         end
     end)
 
-    -- Teleport to nearest coin
+        -- Teleport to nearest coin
     Tabs.Coins:AddButton({
         Title = "💰 " .. (Lang=="AR" and "انتقل لأقرب كوين" or "Teleport to Nearest Coin"),
         Callback = function()
@@ -2073,7 +2096,7 @@ if currentMapID == _A then
                     pcall(function()
                         myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
                                      * CFrame.Angles(0, 0, math.rad(180))
-                        task.wait(0.1)
+                        task.wait(0.25)  -- أبطأ شوي لتفادي البان
                         count = count + 1
                     end)
                 end
@@ -2274,6 +2297,84 @@ if currentMapID == _A then
     NoclipToggle:OnChanged(function()
         NO_CLIP = Options.MM2_Noclip.Value
         if NO_CLIP then startNoclip() else stopNoclip() end
+    end)
+
+    -- ══════════════════════════════════════════════
+    -- 🚀 PLAYER LAUNCHER (تطير لاعب لفوق)
+    -- ══════════════════════════════════════════════
+    Tabs.Player:AddSection("🚀 " .. (Lang=="AR" and "إطلاق لاعب" or "Launch Player"))
+
+    local _launchTarget = nil
+    local _launchActive = false
+    local _launchConn = nil
+
+    local function _getLaunchNames()
+        local names = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then table.insert(names, p.Name) end
+        end
+        if #names == 0 then names = {"-- لا أحد --"} end
+        return names
+    end
+
+    local LaunchDrop = Tabs.Player:AddDropdown("MM2_LaunchTarget", {
+        Title = "🎯 " .. (Lang=="AR" and "حدد لاعب لتطييره" or "Pick target to launch"),
+        Values = _getLaunchNames(), Multi = false, Default = _getLaunchNames()[1]
+    })
+    LaunchDrop:OnChanged(function(v)
+        if v and v ~= "-- لا أحد --" then _launchTarget = v end
+    end)
+
+    Tabs.Player:AddButton({
+        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh"),
+        Callback = function()
+            local n = _getLaunchNames()
+            pcall(function() LaunchDrop:SetValues(n) end)
+        end
+    })
+
+    Tabs.Player:AddToggle("MM2_LauncherActive", {
+        Title = "🚀 " .. (Lang=="AR" and "تطيير اللاعب (طقطقة!)" or "Launch Player (troll!)"),
+        Description = Lang=="AR" and "تحت اللاعب وتنط فيطير لفوق" or "Under target + jump = launch!",
+        Default = false
+    }):OnChanged(function()
+        _launchActive = Options.MM2_LauncherActive.Value
+        if _launchActive then
+            if not _launchTarget then
+                Notify("⚠️", Lang=="AR" and "حدد لاعب أولاً!" or "Pick target first!")
+                Options.MM2_LauncherActive:SetValue(false)
+                return
+            end
+            Notify("🚀", (Lang=="AR" and "بدأ التطيير: " or "Launching: ") .. _launchTarget
+                          .. (Lang=="AR" and "\nانط لإطلاقه!" or "\nJump to launch!"), 5)
+
+            -- Loop: نظل تحت الهدف + لو نط، نطلقه
+            _launchConn = RunService.Heartbeat:Connect(function()
+                if not _launchActive then return end
+                local t = Players:FindFirstChild(_launchTarget)
+                if not t or not t.Character then return end
+                local tHRP = t.Character:FindFirstChild("HumanoidRootPart")
+                if not tHRP then return end
+                local myChar = LocalPlayer.Character
+                local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+                if not myHRP or not myHum then return end
+
+                -- ضع نفسك تحت الهدف (3 ستد تحت)
+                myHRP.CFrame = CFrame.new(tHRP.Position - Vector3.new(0, 4, 0))
+
+                -- إذا اللاعب الحالي في حالة قفز، اطلق الهدف لفوق
+                if myHum:GetState() == Enum.HumanoidStateType.Jumping
+                   or myHum:GetState() == Enum.HumanoidStateType.Freefall then
+                    pcall(function()
+                        tHRP.Velocity = Vector3.new(0, 500, 0) -- يطير لفوق!
+                    end)
+                end
+            end)
+        else
+            if _launchConn then _launchConn:Disconnect() _launchConn = nil end
+            Notify("🚀", Lang=="AR" and "انتهى التطيير" or "Launch stopped")
+        end
     end)
 
     -- ── WORLD ─────────────────────────────────────
