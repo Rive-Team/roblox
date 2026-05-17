@@ -1,42 +1,34 @@
--- ═══════════════════════════════════════════════════════════
--- Kingdom World | Raw Script (Ultimate Compatibility)
--- No UI - All features controlled via global variables
--- Optimized for Arceus X, Delta, and PC Executors
--- ═══════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════
+-- Bo.Sqr | Kingdom World Ultimate Farm Edition
+-- Universal Executor Support (Arceus X, Delta, etc.)
+-- ══════════════════════════════════════════════
 
 -- ═══ Universal Executor Compatibility Layer ═══
--- Some executors don't provide getgenv() or it's named differently
 local _getgenv = getgenv or function()
     if shared and type(shared) == "table" then return shared end
     return _G
 end
 
--- Function compatibility shims for common executor functions
-local _firetouchinterest = firetouchinterest or fireTouchInterest or fire_touch_interest or function(p1,p2,v) end -- no-op fallback
+local _firetouchinterest = firetouchinterest or fireTouchInterest or fire_touch_interest or function(p1,p2,v) end
 local _fireproximityprompt = fireproximityprompt or fireProximityPrompt or fire_proximity_prompt or function(p) if p and p.Triggered then p:Trigger() end end
-local _hookmetamethod = hookmetamethod or hookMetaMethod or hook_metamethod or function() end
-local _getrawmetatable = getrawmetatable or getRawMetatable or get_raw_metatable or function() return {} end
+local _hookmetamethod = hookmetamethod or hookMetaMethod or hook_metamethod
+local _getrawmetatable = getrawmetatable or getRawMetatable or get_raw_metatable
 local _setreadonly = setreadonly or setReadOnly or set_readonly or function() end
 local _newcclosure = newcclosure or newCClosure or new_c_closure or function(f) return f end
 
--- Make these globally accessible for easier use in features
 firetouchinterest = _firetouchinterest
 fireproximityprompt = _fireproximityprompt
 
 -- ══════════════════════════════════════════════════════════════
--- 🛡️ Anti-Detection / Anti-Ban Layer (Robust & Compatible)
+-- 🛡️ Anti-Detection / Anti-Ban Layer (From Working Script)
 -- ══════════════════════════════════════════════════════════════
 do
-    -- 1. Block Kick (Direct method - hookfunction if available)
     pcall(function()
         if hookfunction then
-            hookfunction(game.Players.LocalPlayer.Kick, function()
-                return task.wait(9e9) -- Effectively blocks kick by waiting indefinitely
-            end)
+            hookfunction(game.Players.LocalPlayer.Kick, function() return task.wait(9e9) end)
         end
     end)
 
-    -- 2. Anti-Kick via __namecall (Fallback/Additional Layer)
     pcall(function()
         if _hookmetamethod and _getrawmetatable then
             local plr = game:GetService("Players").LocalPlayer
@@ -46,293 +38,292 @@ do
                 local oldNamecall = mt.__namecall
                 mt.__namecall = _newcclosure(function(self, ...)
                     local method = (getnamecallmethod and getnamecallmethod()) or ""
-                    if method == "Kick" and self == plr then
-                        return nil -- Block the kick call
-                    end
+                    if method == "Kick" and self == plr then return nil end
                     return oldNamecall(self, ...)
                 end)
                 _setreadonly(mt, true)
             end
         end
     end)
-
-    -- 3. Basic Anti-Cheat Bypass (Avoids common detection patterns)
-    -- This part is more about avoiding detection rather than direct hooking
-    -- We'll rely on safe farming methods that don't trigger server-side checks
 end
 
--- ═══════════════════════════════════════════════════════════
--- Services & Variables
--- ═══════════════════════════════════════════════════════════
+-- Safe GUI parent
+local function _safeGuiParent(gui)
+    local ok = pcall(function()
+        if gethui then gui.Parent = gethui() else gui.Parent = game:GetService("CoreGui") end
+    end)
+    if not ok or not gui.Parent then
+        gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
+_G._safeGuiParent = _safeGuiParent
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+-- ── Mobile movement cleanup ──
+do
+    local plr = game:GetService("Players").LocalPlayer
+    local function cleanChar(char)
+        if not char then return end
+        pcall(function()
+            for _, p in pairs(char:GetDescendants()) do
+                if p:IsA("BodyVelocity") or p:IsA("BodyGyro") or p:IsA("BodyMover") or p:IsA("BodyForce") then
+                    p:Destroy()
+                end
+                if p:IsA("BasePart") then p.Anchored = false p.CanCollide = true end
+            end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 hum.JumpPower = 50 hum.AutoRotate = true hum.PlatformStand = false hum.Sit = false end
+        end)
+    end
+    cleanChar(plr.Character)
+    plr.CharacterAdded:Connect(cleanChar)
+end
+
+-- ══════════════════════════════════════════════
+-- Load Fluent UI (Exact same method as working script)
+-- ══════════════════════════════════════════════
+local Fluent, SaveManager, InterfaceManager
+local _fluentOk = pcall(function()
+    Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+    InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+end)
+
+if not _fluentOk or not Fluent then
+    warn("Failed to load Fluent UI")
+    return
+end
+
+local Window = Fluent:CreateWindow({
+    Title = "Bo.Sqr | Kingdom World Ultimate",
+    SubTitle = "Auto Farm Edition",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Farm = Window:AddTab({ Title = "تجميع فلوس", Icon = "coins" }),
+    Player = Window:AddTab({ Title = "اللاعب", Icon = "user" }),
+    Misc = Window:AddTab({ Title = "أخرى", Icon = "wrench" })
+}
+
+-- ══════════════════════════════════════════════
+-- Variables & Services
+-- ══════════════════════════════════════════════
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
-local TweenService = game:GetService("TweenService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local HRP = Character:WaitForChild("HumanoidRootPart")
 
--- Global feature toggles (User controls these directly)
-_G.AutoDriveFarmEnabled = false -- Set to true to enable auto drive farm
-_G.CarSpeed = 80               -- Adjust car speed (e.g., 100, 150, 200)
-_G.AntiFineEnabled = false     -- Set to true to hide license plate
-_G.AutoPaycheckEnabled = false -- Set to true to auto collect paychecks
-_G.WalkSpeed = 16              -- Adjust walk speed (e.g., 30, 60, 100)
-_G.InfiniteJumpEnabled = false -- Set to true for infinite jump
-_G.NoclipEnabled = false       -- Set to true for noclip
-_G.PlayerESPEnabled = false    -- Set to true for player ESP
-
--- Anti-AFK (using VirtualUser for broad compatibility)
-Player.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
-
--- ═════════════════════ Helper Functions ═════════════════════
 Player.CharacterAdded:Connect(function(char)
     Character = char
     Humanoid = char:WaitForChild("Humanoid")
     HRP = char:WaitForChild("HumanoidRootPart")
 end)
 
-local function GetSeat() 
-    return Humanoid and Humanoid.SeatPart 
-end
-
+local function GetSeat() return Humanoid and Humanoid.SeatPart end
 local function GetCarModel() 
     local seat = GetSeat()
     local car = seat and seat:FindFirstAncestorOfClass("Model")
-    if not car then
-        car = seat and seat.Parent
-        if car and not car:IsA("Model") then car = nil end
-    end
+    if not car then car = seat and seat.Parent if car and not car:IsA("Model") then car = nil end end
     return car
 end
 
--- ═════════════════════ ⚙️ FEATURES IMPLEMENTATION ═════════════════════
+-- Global States
+local AutoFarmDriveActive = false
+local AutoFarmSpeed = 80
+local AutoFarmConn = nil
+local AntiFineActive = false
+local AutoPaycheckActive = false
 
--- Auto Drive Farm Logic
-task.spawn(function()
-    while task.wait(0.1) do
-        if _G.AutoDriveFarmEnabled then
-            pcall(function()
-                local seat = GetSeat()
-                local car = GetCarModel()
-                if seat and car and car.PrimaryPart then
-                    local targetSpeed = _G.CarSpeed
-                    local currentVelocity = car.PrimaryPart.AssemblyLinearVelocity
-                    local targetVelocity = car.PrimaryPart.CFrame.LookVector * targetSpeed
-                    
-                    car.PrimaryPart.AssemblyLinearVelocity = currentVelocity:Lerp(targetVelocity, 0.1)
-                    seat.Steer = math.sin(tick() * 0.5) * 0.3
+-- ══════════════════════════════════════════════
+-- Functions
+-- ══════════════════════════════════════════════
 
-                    local gyro = car.PrimaryPart:FindFirstChild("FarmGyro") or Instance.new("BodyGyro")
-                    gyro.Name = "FarmGyro"
-                    gyro.MaxTorque = Vector3.new(400000, 0, 400000)
-                    gyro.P = 10000
-                    gyro.CFrame = CFrame.new(car.PrimaryPart.Position)
-                    gyro.Parent = car.PrimaryPart
-
-                    -- Auto Collect Money Objects nearby
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("BasePart") then
-                            local d = (HRP.Position - obj.Position).Magnitude
-                            if d <= 30 then
-                                local mn = {"Money", "Cash", "Coin", "Gold", "Riyal", "فلوس", "مال", "نقود", "ريال", "CashPart", "Reward", "Collectible"}
-                                for _, n in pairs(mn) do
-                                    if obj.Name:lower():find(n:lower()) then
-                                        pcall(function() 
-                                            _firetouchinterest(HRP, obj, 0) 
-                                            task.wait(0.05) 
-                                            _firetouchinterest(HRP, obj, 1) 
-                                        end)
-                                        break
-                                    end
-                                end
-                            end
-                        end
-                    end
-                else
-                    -- If not in car, disable auto drive to prevent errors
-                    _G.AutoDriveFarmEnabled = false
-                end
-            end)
-        else
-            -- Cleanup when disabled
-            pcall(function()
-                local car = GetCarModel()
-                local seat = GetSeat()
-                if seat then seat.Steer = 0 end
-                if car and car.PrimaryPart then
-                    local gyro = car.PrimaryPart:FindFirstChild("FarmGyro")
-                    if gyro then gyro:Destroy() end
-                    car.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                end
-            end)
+local function StartAutoFarmDrive(speed)
+    if AutoFarmDriveActive then AutoFarmSpeed = speed return true end
+    local seat = GetSeat() 
+    if not seat or not seat:IsA("VehicleSeat") then 
+        Fluent:Notify({Title = "تنبيه", Content = "يجب أن تكون راكب سيارة أولاً!", Duration = 3})
+        return false 
+    end
+    
+    AutoFarmDriveActive = true 
+    AutoFarmSpeed = speed
+    Fluent:Notify({Title = "تجميع تلقائي", Content = "السيارة تمشي بسرعة "..speed.." وتجمع الفلوس!", Duration = 4})
+    
+    AutoFarmConn = RunService.Heartbeat:Connect(function()
+        if not AutoFarmDriveActive or not Character or not Humanoid then return end
+        local cs = Humanoid.SeatPart 
+        if not cs or not cs:IsA("VehicleSeat") then 
+            AutoFarmDriveActive = false 
+            if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end 
+            return 
         end
+        
+        -- Direct velocity manipulation (from working script)
+        cs.Throttle = 1 
+        cs.Steer = math.sin(tick()*0.5)*0.3 
+        cs.MaxSpeed = AutoFarmSpeed 
+        cs.AssemblyLinearVelocity = cs.CFrame.LookVector * AutoFarmSpeed
+        
+        -- Auto Collect
+        if HRP then
+            for _,obj in pairs(workspace:GetDescendants()) do 
+                if obj:IsA("BasePart") then
+                    local d = (HRP.Position - obj.Position).Magnitude 
+                    if d <= 30 then
+                        local mn = {"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward","Collectible"}
+                        for _,n in pairs(mn) do 
+                            if obj.Name:lower():find(n:lower()) then
+                                pcall(function() firetouchinterest(HRP,obj,0) task.wait(0.05) firetouchinterest(HRP,obj,1) end) 
+                                break 
+                            end 
+                        end
+                    end 
+                end 
+            end
+        end
+    end) 
+    return true
+end
+
+local function StopAutoFarmDrive()
+    AutoFarmDriveActive = false 
+    if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end
+    local seat = GetSeat() 
+    if seat and seat:IsA("VehicleSeat") then seat.Throttle = 0 seat.Steer = 0 seat.MaxSpeed = 50 end
+    Fluent:Notify({Title = "توقف", Content = "تم إيقاف التجميع التلقائي", Duration = 3})
+end
+
+-- ══════════════════════════════════════════════
+-- UI Elements
+-- ══════════════════════════════════════════════
+
+-- Farm Tab
+Tabs.Farm:AddParagraph({ Title = "تجميع الفلوس", Content = "اركب سيارة ثم فعل التجميع التلقائي." })
+
+local FarmToggle = Tabs.Farm:AddToggle("AutoFarmToggle", {Title = "🚗 قيادة وتجميع تلقائي", Default = false})
+FarmToggle:OnChanged(function(state)
+    if state then
+        local success = StartAutoFarmDrive(AutoFarmSpeed)
+        if not success then FarmToggle:SetValue(false) end
+    else
+        StopAutoFarmDrive()
     end
 end)
 
--- Anti-Fine Logic
-task.spawn(function()
-    while task.wait(2) do
-        if _G.AntiFineEnabled then
+Tabs.Farm:AddSlider("FarmSpeedSlider", {
+    Title = "⚡ سرعة السيارة",
+    Description = "تحكم في سرعة التجميع",
+    Default = 80,
+    Min = 20,
+    Max = 250,
+    Rounding = 0,
+    Callback = function(Value)
+        AutoFarmSpeed = Value
+    end
+})
+
+local AntiFineToggle = Tabs.Farm:AddToggle("AntiFineToggle", {Title = "🛡️ إخفاء اللوحة (Anti-Fine)", Default = false})
+AntiFineToggle:OnChanged(function(state)
+    AntiFineActive = state
+    task.spawn(function()
+        while AntiFineActive do
             pcall(function()
                 local car = GetCarModel()
                 if car then
                     for _, part in pairs(car:GetDescendants()) do
                         if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
                             part.Transparency = 1
-                            if part:FindFirstChildOfClass("SurfaceGui") then
-                                part:FindFirstChildOfClass("SurfaceGui").Enabled = false
-                            end
+                            if part:FindFirstChildOfClass("SurfaceGui") then part:FindFirstChildOfClass("SurfaceGui").Enabled = false end
                         end
                     end
                 end
             end)
-        else
-            pcall(function()
-                local car = GetCarModel()
-                if car then
-                    for _, part in pairs(car:GetDescendants()) do
-                        if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
-                            part.Transparency = 0
-                            if part:FindFirstChildOfClass("SurfaceGui") then
-                                part:FindFirstChildOfClass("SurfaceGui").Enabled = true
-                            end
-                        end
-                    end
-                end
-            end)
+            task.wait(2)
         end
-    end
+        -- Restore
+        pcall(function()
+            local car = GetCarModel()
+            if car then
+                for _, part in pairs(car:GetDescendants()) do
+                    if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
+                        part.Transparency = 0
+                        if part:FindFirstChildOfClass("SurfaceGui") then part:FindFirstChildOfClass("SurfaceGui").Enabled = true end
+                    end
+                end
+            end
+        end)
+    end)
 end)
 
--- Auto Paycheck Logic
-task.spawn(function()
-    while task.wait(5) do
-        if _G.AutoPaycheckEnabled then
+local PaycheckToggle = Tabs.Farm:AddToggle("PaycheckToggle", {Title = "💰 جمع الرواتب تلقائياً", Default = false})
+PaycheckToggle:OnChanged(function(state)
+    AutoPaycheckActive = state
+    task.spawn(function()
+        while AutoPaycheckActive do
             pcall(function()
                 for _, gui in pairs(Player.PlayerGui:GetDescendants()) do
                     if gui:IsA("TextButton") or gui:IsA("ImageButton") then
                         local text = ""
                         if gui:IsA("TextButton") then text = gui.Text:lower() end
                         if gui:FindFirstChildOfClass("TextLabel") then text = text .. " " .. gui:FindFirstChildOfClass("TextLabel").Text:lower() end
-                        
                         if text:match("claim") or text:match("paycheck") or text:match("collect") or text:match("استلام") or text:match("راتب") then
-                            if gui.Active and gui.Visible and gui.Parent and gui.Parent.Visible then
-                                gui:Click()
-                            end
+                            if gui.Active and gui.Visible and gui.Parent and gui.Parent.Visible then gui:Click() end
                         end
                     end
                 end
             end)
+            task.wait(5)
         end
-    end
+    end)
 end)
 
--- WalkSpeed Logic
-task.spawn(function()
-    while task.wait(0.1) do
-        if Humanoid then
-            Humanoid.WalkSpeed = _G.WalkSpeed
-        end
+-- Player Tab
+Tabs.Player:AddSlider("WalkSpeedSlider", {
+    Title = "سرعة المشي",
+    Default = 16,
+    Min = 16,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(Value)
+        if Humanoid then Humanoid.WalkSpeed = Value end
     end
-end)
+})
 
--- Infinite Jump Logic
-UserInputService.JumpRequest:Connect(function()
-    if _G.InfiniteJumpEnabled and Humanoid then
-        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+Tabs.Player:AddSlider("JumpPowerSlider", {
+    Title = "قوة القفز",
+    Default = 50,
+    Min = 50,
+    Max = 200,
+    Rounding = 0,
+    Callback = function(Value)
+        if Humanoid then Humanoid.JumpPower = Value end
     end
-end)
+})
 
--- Noclip Logic
-task.spawn(function()
-    while task.wait(0.1) do
-        if _G.NoclipEnabled and Character then
-            pcall(function()
-                for _, part in pairs(Character:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
-                end
-            end)
-        else
-            pcall(function()
-                if Character then
-                    for _, part in pairs(Character:GetDescendants()) do
-                        if part:IsA("BasePart") then part.CanCollide = true end
-                    end
-                end
-            end)
-        end
+-- Misc Tab
+Tabs.Misc:AddButton({
+    Title = "إغلاق السكربت",
+    Description = "يغلق الواجهة ويوقف جميع الميزات",
+    Callback = function()
+        StopAutoFarmDrive()
+        AntiFineActive = false
+        AutoPaycheckActive = false
+        Window:Destroy()
     end
-end)
+})
 
--- Player ESP Logic
-task.spawn(function()
-    while task.wait(0.5) do
-        if _G.PlayerESPEnabled then
-            pcall(function()
-                for _, p in pairs(Players:GetPlayers()) do
-                    if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                        local head = p.Character:FindFirstChild("Head")
-                        if head and not head:FindFirstChild("PlayerESPBox") then
-                            local box = Instance.new("BoxHandleAdornment", head)
-                            box.Name = "PlayerESPBox"
-                            box.Size = Vector3.new(2, 6, 1)
-                            box.Color3 = Color3.fromRGB(255, 0, 0)
-                            box.AlwaysOnTop = true
-                            box.ZIndex = 10
-                            box.Transparency = 0.5
-                            box.Adornee = head
-
-                            local nameTag = Instance.new("BillboardGui", head)
-                            nameTag.Name = "PlayerESPNameTag"
-                            nameTag.Size = UDim2.new(0, 100, 0, 20)
-                            nameTag.StudsOffset = Vector3.new(0, 2, 0)
-                            nameTag.AlwaysOnTop = true
-
-                            local nameLabel = Instance.new("TextLabel", nameTag)
-                            nameLabel.Size = UDim2.new(1, 0, 1, 0)
-                            nameLabel.BackgroundTransparency = 1
-                            nameLabel.Text = p.Name .. " [" .. math.floor((HRP.Position - p.Character.HumanoidRootPart.Position).Magnitude) .. "m]"
-                            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                            nameLabel.TextSize = 14
-                            nameLabel.Font = Enum.Font.GothamBold
-                            nameLabel.Parent = nameTag
-                        end
-                    end
-                end
-            end)
-        else
-            pcall(function()
-                for _, p in pairs(Players:GetPlayers()) do
-                    if p.Character then
-                        local head = p.Character:FindFirstChild("Head")
-                        if head then
-                            local box = head:FindFirstChild("PlayerESPBox")
-                            if box then box:Destroy() end
-                            local nameTag = head:FindFirstChild("PlayerESPNameTag")
-                            if nameTag then nameTag:Destroy() end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
-print("Kingdom World Raw Script Loaded! Control features via _G variables.")
--- Example usage in your executor console after executing this script:
--- _G.AutoDriveFarmEnabled = true
--- _G.CarSpeed = 120
--- _G.AntiFineEnabled = true
--- _G.WalkSpeed = 60
--- _G.InfiniteJumpEnabled = true
--- _G.NoclipEnabled = true
--- _G.PlayerESPEnabled = true
+Window:SelectTab(1)
+Fluent:Notify({
+    Title = "Bo.Sqr Edition",
+    Content = "تم تحميل السكربت بنجاح!",
+    Duration = 5
+})
