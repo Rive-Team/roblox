@@ -1,15 +1,14 @@
 -- ═══════════════════════════════════════════════════════════
--- Kingdom World | Universal Edition
--- Developer: 2ecf | Universal Compatibility by Manus AI
--- Features: Lightweight UI, Safe Auto Farm, Anti-AFK, Basic Anti-Fine
--- Compatible with: Arceus X, Delta, Fluxus (Mobile) & Vega X, Synapse, KRNL (PC)
+-- Kingdom World | Robust Universal Edition
+-- Optimized for maximum compatibility across all Executors (Mobile & PC)
+-- Features: Embedded Lightweight UI, Safe Auto Farm, Anti-AFK, Basic Anti-Fine
 -- ═══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -22,6 +21,7 @@ _G.AntiFineEnabled = false
 _G.AutoPaycheckEnabled = false
 _G.WalkSpeedEnabled = false
 _G.JumpPowerEnabled = false
+_G.NoclipEnabled = false
 
 -- Anti-AFK
 Player.Idled:Connect(function()
@@ -29,83 +29,94 @@ Player.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- ═════════════════════ 🎨 LIGHTWEIGHT UI ═════════════════════
+-- ═════════════════════ 🎨 EMBEDDED LIGHTWEIGHT UI ═════════════════════
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KingdomWorldUniversal"
+ScreenGui.Name = "KingdomWorldRobustUniversal"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
 if not ScreenGui.Parent then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.Size = UDim2.new(0, 250, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-Title.Text = "👑 Kingdom World Universal"
-Title.TextColor3 = Color3.fromRGB(255, 215, 0)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.Parent = MainFrame
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
-local Content = Instance.new("ScrollingFrame")
-Content.Size = UDim2.new(1, -20, 1, -45)
-Content.Position = UDim2.new(0, 10, 0, 40)
-Content.BackgroundTransparency = 1
-Content.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be adjusted by UIListLayout
-Content.ScrollBarThickness = 5
-Content.ScrollBarImageColor3 = Color3.fromRGB(255, 215, 0)
-Content.Parent = MainFrame
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
 
-local UIList = Instance.new("UIListLayout", Content)
-UIList.Padding = UDim.new(0, 8)
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, 0, 1, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "👑 Kingdom World Universal"
+TitleText.TextColor3 = Color3.fromRGB(255, 215, 0)
+TitleText.TextSize = 14
+TitleText.Font = Enum.Font.GothamBold
+TitleText.Parent = TitleBar
+
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Size = UDim2.new(1, -10, 1, -40)
+ContentFrame.Position = UDim2.new(0, 5, 0, 35)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Adjusted by UIListLayout
+ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 215, 0)
+ContentFrame.Parent = MainFrame
+
+local UIList = Instance.new("UIListLayout", ContentFrame)
+UIList.Padding = UDim.new(0, 5)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.AutomaticSize = Enum.AutomaticSize.Y
 
 -- ═════════════════════ 🛠️ UI Helpers ═════════════════════
 local function CreateSection(text)
     local Section = Instance.new("TextLabel")
-    Section.Size = UDim2.new(1, 0, 0, 25)
-    Section.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    Section.Size = UDim2.new(1, 0, 0, 20)
+    Section.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     Section.Text = "◆ " .. text
     Section.TextColor3 = Color3.fromRGB(255, 215, 0)
     Section.Font = Enum.Font.GothamBold
-    Section.TextSize = 13
+    Section.TextSize = 12
     Section.TextXAlignment = Enum.TextXAlignment.Left
     Section.TextWrapped = true
-    Section.Parent = Content
+    Section.Parent = ContentFrame
 end
 
 local function CreateToggle(config)
     local toggled = config.CurrentValue or false
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 30)
-    Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    Frame.Parent = Content
+    Frame.Size = UDim2.new(1, 0, 0, 25)
+    Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    Frame.Parent = ContentFrame
     
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -40, 1, 0)
+    Label.Size = UDim2.new(1, -35, 1, 0)
     Label.Position = UDim2.new(0, 5, 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = config.Name
     Label.TextColor3 = Color3.fromRGB(220, 220, 240)
-    Label.TextSize = 12
+    Label.TextSize = 11
     Label.Font = Enum.Font.Gotham
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Frame
     
     local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(0, 30, 0, 18)
-    ToggleBtn.Position = UDim2.new(1, -35, 0.5, -9)
+    ToggleBtn.Size = UDim2.new(0, 30, 0, 15)
+    ToggleBtn.Position = UDim2.new(1, -32, 0.5, -7.5)
     ToggleBtn.BackgroundColor3 = toggled and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
     ToggleBtn.Text = toggled and "ON" or "OFF"
     ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ToggleBtn.TextSize = 10
+    ToggleBtn.TextSize = 9
     ToggleBtn.Font = Enum.Font.GothamBold
     ToggleBtn.Parent = Frame
     
@@ -130,7 +141,14 @@ end
 
 local function GetCarModel() 
     local seat = GetSeat()
-    return seat and seat:FindFirstAncestorOfClass("Model") 
+    -- Try to find the car model by looking for a model ancestor of the seat
+    local car = seat and seat:FindFirstAncestorOfClass("Model")
+    if not car then
+        -- Fallback: sometimes the car is the parent of the seat
+        car = seat and seat.Parent
+        if car and not car:IsA("Model") then car = nil end
+    end
+    return car
 end
 
 -- ═════════════════════ ⚙️ FEATURES ═════════════════════
@@ -149,9 +167,8 @@ CreateToggle({
                         local seat = GetSeat()
                         local car = GetCarModel()
                         if seat and car and car.PrimaryPart then
-                            -- Apply velocity directly to the car's primary part
-                            -- This is more universal than manipulating seat properties for some executors
-                            local targetSpeed = 80 -- A safe speed for farming
+                            -- Directly manipulate car velocity for universal compatibility
+                            local targetSpeed = 70 -- A safe speed for farming
                             local currentVelocity = car.PrimaryPart.AssemblyLinearVelocity
                             local targetVelocity = car.PrimaryPart.CFrame.LookVector * targetSpeed
                             
@@ -324,6 +341,41 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
+CreateToggle({
+    Name = "👻 Noclip",
+    CurrentValue = _G.NoclipEnabled,
+    Callback = function(Value)
+        _G.NoclipEnabled = Value
+        if Value then
+            task.spawn(function()
+                while _G.NoclipEnabled and Character do
+                    pcall(function()
+                        for _, part in pairs(Character:GetDescendants()) do
+                            if part:IsA("BasePart") then part.CanCollide = false end
+                        end
+                    end)
+                    task.wait(0.1)
+                end
+                pcall(function()
+                    if Character then
+                        for _, part in pairs(Character:GetDescendants()) do
+                            if part:IsA("BasePart") then part.CanCollide = true end
+                        end
+                    end
+                end)
+            end)
+        else
+            pcall(function()
+                if Character then
+                    for _, part in pairs(Character:GetDescendants()) do
+                        if part:IsA("BasePart") then part.CanCollide = true end
+                    end
+                end
+            end)
+        end
+    end
+})
+
 CreateSection("❌ Other")
 
 CreateToggle({
@@ -333,4 +385,4 @@ CreateToggle({
     end
 })
 
-print("Kingdom World Universal Script Loaded!")
+print("Kingdom World Robust Universal Script Loaded!")
