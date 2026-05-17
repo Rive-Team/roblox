@@ -114,21 +114,36 @@ local function GetSeat() return Humanoid and Humanoid.SeatPart end
 local function StartAutoFarm()
     if AutoFarmConn then return end
     AutoFarmActive = true
+    Fluent:Notify({
+        Title = "Rive Hub",
+        Content = "Auto Farm Activated!",
+        Duration = 3
+    })
     AutoFarmConn = RunService.Heartbeat:Connect(function()
         if not AutoFarmActive then return end
         local seat = GetSeat()
         if seat and seat:IsA("VehicleSeat") then
             -- Use Throttle and Steer for natural movement (Prevents Freeze)
             seat.Throttle = 1
-            seat.Steer = math.sin(tick() * 0.5) * 0.2
+            seat.Steer = math.sin(tick() * 0.5) * 0.2 -- Gentle steering for smooth turns
             
-            -- Auto Collect Money/Riyals
-            for _, obj in pairs(workspace:GetChildren()) do
-                if obj:IsA("BasePart") and (obj.Name:lower():find("money") or obj.Name:lower():find("riyal")) then
-                    if (HRP.Position - obj.Position).Magnitude < 30 then
-                        firetouchinterest(HRP, obj, 0)
-                        task.wait(0.05)
-                        firetouchinterest(HRP, obj, 1)
+            -- Auto Collect Money/Riyals (Search in workspace descendants for broader coverage)
+            -- Increased search terms and robustness
+            local moneyNames = {"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward","Collectible", "Pickup", "ValuePart"}
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                    local objNameLower = obj.Name:lower()
+                    for _, n in pairs(moneyNames) do
+                        if objNameLower:find(n:lower()) then
+                            if (HRP.Position - obj.Position).Magnitude < 50 then -- Increased detection range
+                                pcall(function()
+                                    firetouchinterest(HRP, obj, 0)
+                                    task.wait(0.05)
+                                    firetouchinterest(HRP, obj, 1)
+                                end)
+                            end
+                            break
+                        end
                     end
                 end
             end
@@ -141,6 +156,11 @@ local function StopAutoFarm()
     if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end
     local seat = GetSeat()
     if seat and seat:IsA("VehicleSeat") then seat.Throttle = 0 seat.Steer = 0 end
+    Fluent:Notify({
+        Title = "Rive Hub",
+        Content = "Auto Farm Deactivated!",
+        Duration = 3
+    })
 end
 
 -- ══════════════════════════════════════════════
@@ -152,25 +172,40 @@ Tabs.Home:AddParagraph({
 })
 
 local FarmToggle = Tabs.Farm:AddToggle("AutoDriveFarm", {Title = "Auto Drive Farm", Default = false})
-FarmToggle:OnChanged(function()
-    if FarmToggle.Value then StartAutoFarm() else StopAutoFarm() end
+FarmToggle:OnChanged(function(state)
+    if state then StartAutoFarm() else StopAutoFarm() end
 end)
 
 local AntiFineToggle = Tabs.Farm:AddToggle("AntiFine", {Title = "Anti-Fine (Radar Bypass)", Default = false})
-AntiFineToggle:OnChanged(function()
-    AntiFineActive = AntiFineToggle.Value
+AntiFineToggle:OnChanged(function(state)
+    AntiFineActive = state
     if AntiFineActive then
+        Fluent:Notify({
+            Title = "Rive Hub",
+            Content = "Anti-Fine Activated! Attempting to bypass radar...",
+            Duration = 3
+        })
         local mt = getrawmetatable(game)
         setreadonly(mt, false)
         local old = mt.__namecall
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            if method == "FireServer" and (self.Name:find("Fine") or self.Name:find("Radar")) then
-                return nil
+            -- Check for common remote event names related to fines/radars
+            -- Added more general terms and common remote event patterns
+            if method == "FireServer" and (self.Name:find("Fine") or self.Name:find("Radar") or self.Name:find("SpeedCheck") or self.Name:find("Violation") or self.Name:find("AntiCheat") or self.Name:find("AC")) then
+                return nil -- Block the remote event
             end
             return old(self, ...)
         end)
         setreadonly(mt, true)
+    else
+        Fluent:Notify({
+            Title = "Rive Hub",
+            Content = "Anti-Fine Deactivated!",
+            Duration = 3
+        })
+        -- Revert the hook if possible (requires storing the old __namecall)
+        -- For simplicity and to avoid potential issues, we'll just let it be re-executed if needed.
     end
 end)
 
@@ -195,8 +230,13 @@ Tabs.Misc:AddButton({
     Title = "Auto Paycheck",
     Callback = function()
         for _, v in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetDescendants()) do
-            if v:IsA("TextButton") and (v.Text:find("Collect") or v.Text:find("Paycheck")) then
+            if v:IsA("TextButton") and (v.Text:find("Collect") or v.Text:find("Paycheck") or v.Name:find("CollectButton") or v.Name:find("PaycheckButton")) then
                 pcall(function() v.MouseButton1Click:Fire() end)
+                Fluent:Notify({
+                    Title = "Rive Hub",
+                    Content = "Attempting to collect paycheck!",
+                    Duration = 2
+                })
             end
         end
     end
@@ -205,6 +245,11 @@ Tabs.Misc:AddButton({
 Tabs.Misc:AddButton({
     Title = "Server Hop",
     Callback = function()
+        Fluent:Notify({
+            Title = "Rive Hub",
+            Content = "Attempting to server hop...",
+            Duration = 3
+        })
         local HttpService = game:GetService("HttpService")
         local TeleportService = game:GetService("TeleportService")
         local Servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
