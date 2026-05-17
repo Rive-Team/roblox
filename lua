@@ -605,12 +605,13 @@ do
     end)
 
     -- ── Update glow position to follow button ──
-    RunService.Heartbeat:Connect(function()
-        if _MF.Parent and _outerGlow.Parent then
+    task.spawn(function()
+        while _MF.Parent and _outerGlow.Parent do
             local bp = _MF.AbsolutePosition
             local bs = _MF.AbsoluteSize
             local gs = _outerGlow.AbsoluteSize
             _outerGlow.Position = UDim2.new(0, bp.X + (bs.X - gs.X)/2, 0, bp.Y + (bs.Y - gs.Y)/2)
+            task.wait(0.07)
         end
     end)
 
@@ -1277,13 +1278,6 @@ if currentMapID == _A then
         CHAMS_ENABLED = Options.MM2_Chams.Value
         if CHAMS_ENABLED then EnableChams() else DisableChams() end
     end)
-    Tabs.Esp:AddSection("🔍 " .. L("extra_esp"))
-    local NameESP = Tabs.Esp:AddToggle("MM2_Names", { Title = L("name_esp"), Default = false })
-    NameESP:OnChanged(function() NAME_ESP_ENABLED = Options.MM2_Names.Value end)
-    local DistESP = Tabs.Esp:AddToggle("MM2_Distance", { Title = L("dist_esp"), Default = false })
-    DistESP:OnChanged(function() DISTANCE_ESP_ENABLED = Options.MM2_Distance.Value end)
-    local HpESP = Tabs.Esp:AddToggle("MM2_Health", { Title = L("hp_esp"), Default = false })
-    HpESP:OnChanged(function() HEALTH_ESP_ENABLED = Options.MM2_Health.Value end)
     -- Teleport features moved to Teleport tab
 
     -- ── COMBAT ────────────────────────────────────
@@ -1458,6 +1452,139 @@ if currentMapID == _A then
             end
             getGunConn = nil
             Notify("🔫", Lang=="AR" and "Get Gun أوقف" or "Get Gun OFF")
+        end
+    end)
+
+    -- ══════════════════════════════════════════════
+    -- 🎁 GIVE GUN — يرسل المسدس للاعب محدد لما الشريف يموت
+    -- ══════════════════════════════════════════════
+    Tabs.Combat:AddSection("🎁 " .. (Lang=="AR" and "إرسال المسدس" or "Give Gun"))
+
+    local GIVE_GUN_TARGET = nil
+    local GIVE_GUN_ENABLED = false
+
+    local function _getGiveGunNames()
+        local names = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then table.insert(names, p.Name) end
+        end
+        if #names == 0 then names = {"-- لا أحد --"} end
+        return names
+    end
+
+    local GiveGunDrop = Tabs.Combat:AddDropdown("MM2_GiveGunTarget", {
+        Title = "🎯 " .. (Lang=="AR" and "اللاعب اللي يستلم المسدس" or "Gun receiver"),
+        Values = _getGiveGunNames(), Multi = false, Default = _getGiveGunNames()[1]
+    })
+    GiveGunDrop:OnChanged(function(v)
+        if v and v ~= "-- لا أحد --" then GIVE_GUN_TARGET = v end
+    end)
+
+    Tabs.Combat:AddButton({
+        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh"),
+        Callback = function()
+            local n = _getGiveGunNames()
+            pcall(function() GiveGunDrop:SetValues(n) end)
+        end
+    })
+
+    -- وظيفة: نقل المسدس للاعب
+    local function _deliverGunTo(targetPlr)
+        if not targetPlr or not targetPlr.Character then return false end
+        local tHRP = targetPlr.Character:FindFirstChild("HumanoidRootPart")
+        if not tHRP then return false end
+
+        -- ابحث عن GunDrop بعمق
+        local function findGun(parent, depth)
+            depth = depth or 0
+            if depth > 4 then return nil end
+            for _, c in pairs(parent:GetChildren()) do
+                if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
+                    return c
+                end
+                if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
+                    local r = findGun(c, depth + 1)
+                    if r then return r end
+                end
+            end
+            return nil
+        end
+
+        local gun = findGun(workspace, 0)
+        if not gun then return false end
+
+        pcall(function()
+            if gun:IsA("BasePart") then
+                gun.CFrame = tHRP.CFrame
+            elseif gun:IsA("Tool") then
+                local handle = gun:FindFirstChild("Handle")
+                if handle then handle.CFrame = tHRP.CFrame end
+            elseif gun:IsA("Model") and gun.PrimaryPart then
+                gun:SetPrimaryPartCFrame(tHRP.CFrame)
+            end
+        end)
+        return true
+    end
+
+    Tabs.Combat:AddToggle("MM2_GiveGun", {
+        Title = "🎁 " .. (Lang=="AR" and "Give Gun (لما الشريف يموت)" or "Give Gun (on sheriff death)"),
+        Description = Lang=="AR" and "ينقل المسدس للاعب المحدد لما الشريف يموت" or "Sends gun to target when sheriff dies",
+        Default = false
+    }):OnChanged(function()
+        GIVE_GUN_ENABLED = Options.MM2_GiveGun.Value
+        if GIVE_GUN_ENABLED then
+            if not GIVE_GUN_TARGET or GIVE_GUN_TARGET == "-- لا أحد --" then
+                Notify("⚠️", Lang=="AR" and "حدد اللاعب أولاً" or "Pick target first")
+                Options.MM2_GiveGun:SetValue(false)
+                return
+            end
+            Notify("🎁", (Lang=="AR" and "Give Gun مفعل → " or "Give Gun ON → ") .. GIVE_GUN_TARGET)
+            -- نراقب موت كل الشيرفس
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then
+                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.Died:Connect(function()
+                            if GIVE_GUN_ENABLED and getPlayerRole(plr) == "SHERIFF" then
+                                task.wait(0.4) -- انتظر سقوط المسدس
+                                local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
+                                if target then
+                                    for i = 1, 5 do
+                                        if _deliverGunTo(target) then
+                                            Notify("🎁 ✅", (Lang=="AR" and "المسدس انتقل لـ " or "Gun sent to ") .. target.Name)
+                                            break
+                                        end
+                                        task.wait(0.25)
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+            -- لو لاعب جديد دخل، نراقب موته بعد
+            Players.PlayerAdded:Connect(function(plr)
+                if not GIVE_GUN_ENABLED then return end
+                plr.CharacterAdded:Connect(function(char)
+                    local hum = char:WaitForChild("Humanoid", 5)
+                    if hum then
+                        hum.Died:Connect(function()
+                            if GIVE_GUN_ENABLED and getPlayerRole(plr) == "SHERIFF" then
+                                task.wait(0.4)
+                                local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
+                                if target then
+                                    for i = 1, 5 do
+                                        if _deliverGunTo(target) then break end
+                                        task.wait(0.25)
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end)
+            end)
+        else
+            Notify("🎁", Lang=="AR" and "Give Gun أوقف" or "Give Gun OFF")
         end
     end)
 
@@ -1695,25 +1822,52 @@ if currentMapID == _A then
         SILENT_AIM = Options.MM2_SilentAim.Value
         if SILENT_AIM then
             local ok = pcall(function()
-                -- Use compat shims (work on all executors)
                 if not _getrawmetatable or not _hookmetamethod then
                     SILENT_AIM = false
                     Options.MM2_SilentAim:SetValue(false)
                     Notify("⚠️", "هذا executor لا يدعم Silent Aim")
                     return
                 end
+                if _G.BoSqr_SilentAimHooked then return end
+                _G.BoSqr_SilentAimHooked = true
+
                 local mt = _getrawmetatable(game)
                 pcall(_setreadonly, mt, false)
                 local old = mt.__namecall
                 mt.__namecall = _newcclosure(function(self, ...)
-                    local method = getnamecallmethod()
-                    local args = {...}
-                    if SILENT_AIM and method == "InvokeServer" and self.Name == "ShootGun" then
-                        -- وجد القاتل
-                        for _, p in pairs(Players:GetPlayers()) do
-                            if p ~= LocalPlayer and getPlayerRole(p) == "KILLER" then
-                                if p.Character and p.Character:FindFirstChild("Head") then
-                                    args[2] = p.Character.Head.Position
+                    local method = getnamecallmethod and getnamecallmethod() or ""
+                    if SILENT_AIM and (method == "InvokeServer" or method == "FireServer") then
+                        local sname = (self and self.Name or ""):lower()
+                        -- نشيك على أي remote يخص الإطلاق
+                        if sname:find("shoot") or sname:find("gun") or sname:find("fire")
+                           or sname:find("bullet") or sname:find("kill") then
+                            -- نلاقي القاتل
+                            local killer = nil
+                            for _, p in pairs(Players:GetPlayers()) do
+                                if p ~= LocalPlayer and getPlayerRole(p) == "KILLER"
+                                   and p.Character then
+                                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                                    if hum and hum.Health > 0 then
+                                        killer = p
+                                        break
+                                    end
+                                end
+                            end
+                            if killer and killer.Character then
+                                local head = killer.Character:FindFirstChild("Head")
+                                       or killer.Character:FindFirstChild("HumanoidRootPart")
+                                if head then
+                                    local args = {...}
+                                    -- استبدل أي Vector3 أو CFrame في الـ args بموقع القاتل
+                                    for i, v in ipairs(args) do
+                                        if typeof(v) == "Vector3" then
+                                            args[i] = head.Position
+                                        elseif typeof(v) == "CFrame" then
+                                            args[i] = CFrame.new(head.Position)
+                                        elseif typeof(v) == "Instance" and (v:IsA("BasePart") or v:IsA("Model")) then
+                                            args[i] = head
+                                        end
+                                    end
                                     return old(self, unpack(args))
                                 end
                             end
@@ -1730,6 +1884,8 @@ if currentMapID == _A then
                 SILENT_AIM = false
                 Options.MM2_SilentAim:SetValue(false)
             end
+        else
+            Notify("🎯", Lang=="AR" and "Silent Aim أوقف" or "Silent Aim OFF")
         end
     end)
 
@@ -1883,72 +2039,7 @@ if currentMapID == _A then
         end
     end)
 
-    -- Coin ESP - يضوي كل العملات في الخريطة (يدعم Coin & Coin_Server)
-    local _coinESPMap = {}
-    local _coinESPActive = false
-    Tabs.Coins:AddToggle("MM2_CoinESPNew", {
-        Title = "💰 " .. (Lang=="AR" and "كشف الكوينز (ESP)" or "Coin ESP"),
-        Description = Lang=="AR" and "يضوي كل الكوينز بلون ذهبي" or "Highlight all coins (gold)",
-        Default = false
-    }):OnChanged(function()
-        _coinESPActive = Options.MM2_CoinESPNew.Value
-        if _coinESPActive then
-            Notify("💰", Lang=="AR" and "Coin ESP مفعل" or "Coin ESP ON")
-            task.spawn(function()
-                while _coinESPActive do
-                    pcall(function()
-                        -- ابحث في كل الـ workspace بعمق
-                        local function findCoins(parent, depth)
-                            depth = depth or 0
-                            if depth > 5 then return end
-                            for _, child in pairs(parent:GetChildren()) do
-                                if child:IsA("BasePart") then
-                                    local cn = child.Name
-                                    if (cn == "Coin" or cn == "Coin_Server"
-                                       or cn:lower():find("coin"))
-                                       and not _coinESPMap[child] then
-                                        local h = Instance.new("Highlight")
-                                        h.Name = "BoSqr_CoinHL"
-                                        h.FillColor = Color3.fromRGB(255, 215, 0)
-                                        h.OutlineColor = Color3.fromRGB(255, 255, 100)
-                                        h.FillTransparency = 0.2
-                                        h.OutlineTransparency = 0
-                                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                                        h.Parent = child
-                                        _coinESPMap[child] = h
-                                    end
-                                end
-                                if child:IsA("Model") or child:IsA("Folder") then
-                                    findCoins(child, depth + 1)
-                                end
-                            end
-                        end
-                        findCoins(workspace, 0)
-                        -- نظف الـ highlights القديمة
-                        for coin, h in pairs(_coinESPMap) do
-                            if not coin or not coin.Parent then
-                                pcall(function() if h then h:Destroy() end end)
-                                _coinESPMap[coin] = nil
-                            end
-                        end
-                    end)
-                    task.wait(1)
-                end
-                for _, h in pairs(_coinESPMap) do
-                    pcall(function() if h then h:Destroy() end end)
-                end
-                _coinESPMap = {}
-            end)
-        else
-            _coinESPActive = false
-            for _, h in pairs(_coinESPMap) do
-                pcall(function() if h then h:Destroy() end end)
-            end
-            _coinESPMap = {}
-            Notify("💰", Lang=="AR" and "Coin ESP أوقف" or "Coin ESP OFF")
-        end
-    end)
-
+    
         -- Teleport to nearest coin
     Tabs.Coins:AddButton({
         Title = "💰 " .. (Lang=="AR" and "انتقل لأقرب كوين" or "Teleport to Nearest Coin"),
@@ -1994,7 +2085,7 @@ if currentMapID == _A then
                 if coin.Name == "Coin_Server" and coin:IsDescendantOf(workspace) then
                     pcall(function()
                         myHRP.CFrame = CFrame.new(coin.Position + Vector3.new(0, 1, 0))
-                        task.wait(0.25)  -- أبطأ شوي لتفادي البان
+                        task.wait(0.15)  -- متوسط: لا بطيء جداً ولا سريع جداً
                         count = count + 1
                     end)
                 end
@@ -2854,8 +2945,21 @@ if currentMapID == _A then
             GET_GUN_ENABLED = false
             if getGunConn then getGunConn:Disconnect() end
             -- احذف TapBar
+            -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
+            -- احتياطي: ابحث وامسح أي ScreenGui باسم BoSqrRiveTap
+            pcall(function()
+                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
+                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                end
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                if pg then
+                    for _, g in pairs(pg:GetChildren()) do
+                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                    end
+                end
             end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
@@ -3785,8 +3889,21 @@ elseif currentMapID == _B then
             if SpeedHackConn then SpeedHackConn:Disconnect() end
             if AntiFlingConn then AntiFlingConn:Disconnect() end
             -- احذف TapBar
+            -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
+            -- احتياطي: ابحث وامسح أي ScreenGui باسم BoSqrRiveTap
+            pcall(function()
+                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
+                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                end
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                if pg then
+                    for _, g in pairs(pg:GetChildren()) do
+                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                    end
+                end
             end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
@@ -4648,8 +4765,21 @@ elseif currentMapID == _C then
             if TBT_NoclipConn then TBT_NoclipConn:Disconnect() end
             pcall(TBT_ClearESP)
             -- احذف TapBar
+            -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
+            -- احتياطي: ابحث وامسح أي ScreenGui باسم BoSqrRiveTap
+            pcall(function()
+                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
+                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                end
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                if pg then
+                    for _, g in pairs(pg:GetChildren()) do
+                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                    end
+                end
             end)
             _getgenv().bosqr_loaded = nil
             pcall(function() Window:Destroy() end)
