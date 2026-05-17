@@ -1,7 +1,6 @@
 -- ══════════════════════════════════════════════
--- Rive Hub | Kingdom World Ultra-Stable Edition
--- Optimized for Arceus X & Weak Devices
--- Based on Bo.Sqr Structure
+-- Rive Hub | Kingdom World Low Pressure Edition
+-- Ultra-Lightweight & Optimized for Weak Devices
 -- ══════════════════════════════════════════════
 
 -- ═══ Universal Executor Compatibility Layer ═══
@@ -71,29 +70,63 @@ do
 end
 
 -- ══════════════════════════════════════════════
--- Load Fluent UI (Same as Bo.Sqr)
+-- Manual UI (Ultra-Lightweight)
 -- ══════════════════════════════════════════════
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RiveHub_UI"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
-local Window = Fluent:CreateWindow({
-    Title = "Rive Hub | Kingdom World",
-    SubTitle = "Ultra-Stable Edition",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = false, -- Set to false for better performance on weak devices
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
-})
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 200, 0, 150)
+MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
 
-local Tabs = {
-    Home = Window:AddTab({ Title = "Home", Icon = "home" }),
-    Farm = Window:AddTab({ Title = "Auto Farm", Icon = "coins" }),
-    Player = Window:AddTab({ Title = "Player", Icon = "user" }),
-    Misc = Window:AddTab({ Title = "Misc", Icon = "wrench" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-}
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 25)
+TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 18
+TitleLabel.Text = "Rive Hub | Low Pressure"
+TitleLabel.Parent = MainFrame
+
+local ToggleFrame = Instance.new("Frame")
+ToggleFrame.Size = UDim2.new(1, 0, 1, -25)
+ToggleFrame.Position = UDim2.new(0, 0, 0, 25)
+ToggleFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ToggleFrame.BorderSizePixel = 0
+ToggleFrame.Parent = MainFrame
+
+local UILayout = Instance.new("UIListLayout")
+UILayout.FillDirection = Enum.FillDirection.Vertical
+UILayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UILayout.Padding = UDim.new(0, 5)
+UILayout.Parent = ToggleFrame
+
+local function CreateToggle(name, text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0.9, 0, 0, 25)
+    Button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 16
+    Button.Text = text .. " [OFF]"
+    Button.Parent = ToggleFrame
+
+    local IsActive = false
+    Button.MouseButton1Click:Connect(function()
+        IsActive = not IsActive
+        Button.Text = text .. (IsActive and " [ON]" or " [OFF]")
+        Button.BackgroundColor3 = IsActive and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(70, 70, 70)
+        callback(IsActive)
+    end)
+    return Button
+end
 
 -- ══════════════════════════════════════════════
 -- Core Logic (Optimized & Fixed Movement)
@@ -110,39 +143,35 @@ local AntiFineActive = false
 
 local function GetSeat() return Humanoid and Humanoid.SeatPart end
 
--- Optimized Auto Drive Farm (Fixed Freeze)
+-- Optimized Auto Drive Farm (Fixed Freeze & Low Frequency)
 local function StartAutoFarm()
     if AutoFarmConn then return end
     AutoFarmActive = true
-    Fluent:Notify({
-        Title = "Rive Hub",
-        Content = "Auto Farm Activated!",
-        Duration = 3
-    })
+    -- No Fluent notification for ultra-lightweight
     AutoFarmConn = RunService.Heartbeat:Connect(function()
         if not AutoFarmActive then return end
         local seat = GetSeat()
         if seat and seat:IsA("VehicleSeat") then
-            -- Use Throttle and Steer for natural movement (Prevents Freeze)
             seat.Throttle = 1
             seat.Steer = math.sin(tick() * 0.5) * 0.2 -- Gentle steering for smooth turns
             
-            -- Auto Collect Money/Riyals (Search in workspace descendants for broader coverage)
-            -- Increased search terms and robustness
-            local moneyNames = {"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward","Collectible", "Pickup", "ValuePart"}
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("BasePart") or obj:IsA("MeshPart") then
-                    local objNameLower = obj.Name:lower()
-                    for _, n in pairs(moneyNames) do
-                        if objNameLower:find(n:lower()) then
-                            if (HRP.Position - obj.Position).Magnitude < 50 then -- Increased detection range
-                                pcall(function()
-                                    firetouchinterest(HRP, obj, 0)
-                                    task.wait(0.05)
-                                    firetouchinterest(HRP, obj, 1)
-                                end)
+            -- Auto Collect Money/Riyals (Low Frequency Check)
+            if tick() % 1 < 0.1 then -- Check every ~1 second
+                local moneyNames = {"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward","Collectible", "Pickup", "ValuePart"}
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                        local objNameLower = obj.Name:lower()
+                        for _, n in pairs(moneyNames) do
+                            if objNameLower:find(n:lower()) then
+                                if (HRP.Position - obj.Position).Magnitude < 50 then
+                                    pcall(function()
+                                        firetouchinterest(HRP, obj, 0)
+                                        task.wait(0.05)
+                                        firetouchinterest(HRP, obj, 1)
+                                    end)
+                                end
+                                break
                             end
-                            break
                         end
                     end
                 end
@@ -156,124 +185,45 @@ local function StopAutoFarm()
     if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end
     local seat = GetSeat()
     if seat and seat:IsA("VehicleSeat") then seat.Throttle = 0 seat.Steer = 0 end
-    Fluent:Notify({
-        Title = "Rive Hub",
-        Content = "Auto Farm Deactivated!",
-        Duration = 3
-    })
+    -- No Fluent notification for ultra-lightweight
 end
 
--- ══════════════════════════════════════════════
--- UI Setup
--- ══════════════════════════════════════════════
-Tabs.Home:AddParagraph({
-    Title = "Welcome to Rive Hub",
-    Content = "This script is optimized for weak devices and Arceus X. Enjoy your farming!"
-})
-
-local FarmToggle = Tabs.Farm:AddToggle("AutoDriveFarm", {Title = "Auto Drive Farm", Default = false})
-FarmToggle:OnChanged(function(state)
-    if state then StartAutoFarm() else StopAutoFarm() end
-end)
-
-local AntiFineToggle = Tabs.Farm:AddToggle("AntiFine", {Title = "Anti-Fine (Radar Bypass)", Default = false})
-AntiFineToggle:OnChanged(function(state)
+-- Anti-Fine (Radar Bypass) - Same robust hooking
+local function ActivateAntiFine(state)
     AntiFineActive = state
     if AntiFineActive then
-        Fluent:Notify({
-            Title = "Rive Hub",
-            Content = "Anti-Fine Activated! Attempting to bypass radar...",
-            Duration = 3
-        })
+        -- No Fluent notification for ultra-lightweight
         local mt = getrawmetatable(game)
         setreadonly(mt, false)
         local old = mt.__namecall
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            -- Check for common remote event names related to fines/radars
-            -- Added more general terms and common remote event patterns
             if method == "FireServer" and (self.Name:find("Fine") or self.Name:find("Radar") or self.Name:find("SpeedCheck") or self.Name:find("Violation") or self.Name:find("AntiCheat") or self.Name:find("AC")) then
-                return nil -- Block the remote event
+                return nil
             end
             return old(self, ...)
         end)
         setreadonly(mt, true)
     else
-        Fluent:Notify({
-            Title = "Rive Hub",
-            Content = "Anti-Fine Deactivated!",
-            Duration = 3
-        })
-        -- Revert the hook if possible (requires storing the old __namecall)
-        -- For simplicity and to avoid potential issues, we'll just let it be re-executed if needed.
+        -- Revert hook is complex, for low pressure we just let it be.
     end
+end
+
+-- UI Elements
+CreateToggle("AutoDriveFarm", "Auto Drive Farm", function(state) if state then StartAutoFarm() else StopAutoFarm() end end)
+CreateToggle("AntiFine", "Anti-Fine (Radar Bypass)", ActivateAntiFine)
+
+-- Initial notification (simple text label)
+local InitialNotification = Instance.new("TextLabel")
+InitialNotification.Size = UDim2.new(0, 200, 0, 30)
+InitialNotification.Position = UDim2.new(0.5, -100, 0.05, 0)
+InitialNotification.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+InitialNotification.TextColor3 = Color3.fromRGB(255, 255, 255)
+InitialNotification.Font = Enum.Font.SourceSans
+InitialNotification.TextSize = 16
+InitialNotification.Text = "Rive Hub Loaded!"
+InitialNotification.Parent = ScreenGui
+
+task.delay(3, function()
+    InitialNotification:Destroy()
 end)
-
-Tabs.Player:AddSlider("WalkSpeed", {
-    Title = "Walk Speed",
-    Description = "Adjust your movement speed",
-    Default = 16,
-    Min = 16,
-    Max = 200,
-    Rounding = 1,
-    Callback = function(Value) Humanoid.WalkSpeed = Value end
-})
-
-Tabs.Player:AddToggle("InfJump", {Title = "Infinite Jump", Default = false}):OnChanged(function(state)
-    _G.InfJump = state
-    game:GetService("UserInputService").JumpRequest:Connect(function()
-        if _G.InfJump then Humanoid:ChangeState("Jumping") end
-    end)
-end)
-
-Tabs.Misc:AddButton({
-    Title = "Auto Paycheck",
-    Callback = function()
-        for _, v in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetDescendants()) do
-            if v:IsA("TextButton") and (v.Text:find("Collect") or v.Text:find("Paycheck") or v.Name:find("CollectButton") or v.Name:find("PaycheckButton")) then
-                pcall(function() v.MouseButton1Click:Fire() end)
-                Fluent:Notify({
-                    Title = "Rive Hub",
-                    Content = "Attempting to collect paycheck!",
-                    Duration = 2
-                })
-            end
-        end
-    end
-})
-
-Tabs.Misc:AddButton({
-    Title = "Server Hop",
-    Callback = function()
-        Fluent:Notify({
-            Title = "Rive Hub",
-            Content = "Attempting to server hop...",
-            Duration = 3
-        })
-        local HttpService = game:GetService("HttpService")
-        local TeleportService = game:GetService("TeleportService")
-        local Servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
-        for _, s in pairs(Servers.data) do
-            if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id)
-                break
-            end
-        end
-    end
-})
-
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("RiveHub")
-SaveManager:SetFolder("RiveHub/KingdomWorld")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
-
-Window:SelectTab(1)
-Fluent:Notify({
-    Title = "Rive Hub",
-    Content = "Script Loaded Successfully!",
-    Duration = 5
-})
