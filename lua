@@ -1526,9 +1526,11 @@ if currentMapID == _A then
         return true
     end
 
+    -- ─── Give Gun: يراقب workspace لظهور GunDrop ───
+    local GIVE_GUN_LOOP = nil
     Tabs.Combat:AddToggle("MM2_GiveGun", {
-        Title = "🎁 " .. (Lang=="AR" and "Give Gun (لما الشريف يموت)" or "Give Gun (on sheriff death)"),
-        Description = Lang=="AR" and "ينقل المسدس للاعب المحدد لما الشريف يموت" or "Sends gun to target when sheriff dies",
+        Title = "🎁 " .. (Lang=="AR" and "Give Gun (للشخص المحدد)" or "Give Gun (to target)"),
+        Description = Lang=="AR" and "ينقل المسدس للاعب المحدد فور سقوطه" or "Sends dropped gun to target",
         Default = false
     }):OnChanged(function()
         GIVE_GUN_ENABLED = Options.MM2_GiveGun.Value
@@ -1539,49 +1541,52 @@ if currentMapID == _A then
                 return
             end
             Notify("🎁", (Lang=="AR" and "Give Gun مفعل → " or "Give Gun ON → ") .. GIVE_GUN_TARGET)
-            -- نراقب موت كل الشيرفس
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer and plr.Character then
-                    local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.Died:Connect(function()
-                            if GIVE_GUN_ENABLED and getPlayerRole(plr) == "SHERIFF" then
-                                task.wait(0.4) -- انتظر سقوط المسدس
-                                local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
-                                if target then
-                                    for i = 1, 5 do
-                                        if _deliverGunTo(target) then
-                                            Notify("🎁 ✅", (Lang=="AR" and "المسدس انتقل لـ " or "Gun sent to ") .. target.Name)
-                                            break
-                                        end
-                                        task.wait(0.25)
+
+            -- Loop يراقب الـ workspace باستمرار
+            if GIVE_GUN_LOOP then pcall(function() GIVE_GUN_LOOP:Disconnect() end) end
+            local _lastSent = nil
+            task.spawn(function()
+                while GIVE_GUN_ENABLED do
+                    task.wait(0.3)
+                    if not GIVE_GUN_ENABLED then break end
+
+                    local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
+                    if target and target.Character then
+                        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+                        if tHRP then
+                            -- ابحث عن GunDrop في workspace
+                            local function findGun(parent, depth)
+                                depth = depth or 0
+                                if depth > 4 then return nil end
+                                for _, c in pairs(parent:GetChildren()) do
+                                    if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
+                                        return c
+                                    end
+                                    if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
+                                        local r = findGun(c, depth + 1)
+                                        if r then return r end
                                     end
                                 end
+                                return nil
                             end
-                        end)
+                            local gun = findGun(workspace, 0)
+                            if gun and gun ~= _lastSent then
+                                pcall(function()
+                                    if gun:IsA("BasePart") then
+                                        gun.CFrame = tHRP.CFrame
+                                    elseif gun:IsA("Tool") then
+                                        local h = gun:FindFirstChild("Handle")
+                                        if h then h.CFrame = tHRP.CFrame end
+                                    elseif gun:IsA("Model") and gun.PrimaryPart then
+                                        gun:SetPrimaryPartCFrame(tHRP.CFrame)
+                                    end
+                                end)
+                                _lastSent = gun
+                                Notify("🎁 ✅", (Lang=="AR" and "المسدس انتقل لـ " or "Gun → ") .. target.Name)
+                            end
+                        end
                     end
                 end
-            end
-            -- لو لاعب جديد دخل، نراقب موته بعد
-            Players.PlayerAdded:Connect(function(plr)
-                if not GIVE_GUN_ENABLED then return end
-                plr.CharacterAdded:Connect(function(char)
-                    local hum = char:WaitForChild("Humanoid", 5)
-                    if hum then
-                        hum.Died:Connect(function()
-                            if GIVE_GUN_ENABLED and getPlayerRole(plr) == "SHERIFF" then
-                                task.wait(0.4)
-                                local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
-                                if target then
-                                    for i = 1, 5 do
-                                        if _deliverGunTo(target) then break end
-                                        task.wait(0.25)
-                                    end
-                                end
-                            end
-                        end)
-                    end
-                end)
             end)
         else
             Notify("🎁", Lang=="AR" and "Give Gun أوقف" or "Give Gun OFF")
@@ -1731,7 +1736,6 @@ if currentMapID == _A then
     MM2_KillAllToggle:OnChanged(function()
         MM2_KillAllActive = Options.MM2_KillAllAuto.Value
         if MM2_KillAllActive then
-            -- Check role
             if getPlayerRole(LocalPlayer) ~= "KILLER" then
                 Options.MM2_KillAllAuto:SetValue(false)
                 MM2_KillAllActive = false
@@ -1739,44 +1743,44 @@ if currentMapID == _A then
             end
             Notify("☠️", Lang=="AR" and "Kill All تلقائي مفعل!" or "Kill All Auto ON!")
             task.spawn(function()
-                while MM2_KillAllActive do
-                    -- Re-check still killer (role may change)
-                    if getPlayerRole(LocalPlayer) ~= "KILLER" then
-                        MM2_KillAllActive = false
-                        pcall(function() Options.MM2_KillAllAuto:SetValue(false) end)
-                        Notify("⚠️", Lang=="AR" and "لم تعد قاتلاً!" or "You are no longer the Killer!")
-                        break
-                    end
-                    local myChar = LocalPlayer.Character
-                    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                    -- Check we are alive
-                    if not myHRP or not myHum or myHum.Health <= 0 then
-                        task.wait(1) -- wait for respawn
-                    else
-                        local targets = {}
-                        for _, p in pairs(Players:GetPlayers()) do
-                            if MM2_IsValidTarget(p) then
-                                table.insert(targets, p)
-                            end
+                -- استخدم pcall لتجنب الكراش
+                local ok, err = pcall(function()
+                    while MM2_KillAllActive do
+                        task.wait(0.6) -- بطيء وآمن
+                        if not MM2_KillAllActive then break end
+
+                        if getPlayerRole(LocalPlayer) ~= "KILLER" then
+                            MM2_KillAllActive = false
+                            pcall(function() Options.MM2_KillAllAuto:SetValue(false) end)
+                            break
                         end
-                        if #targets == 0 then
+
+                        local myChar = LocalPlayer.Character
+                        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+
+                        if not myHRP or not myHum or myHum.Health <= 0 then
                             task.wait(1)
                         else
-                            for _, p in pairs(targets) do
-                                if not MM2_KillAllActive then break end
-                                myChar = LocalPlayer.Character
-                                myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                                local myHum2 = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                                -- تأكد إنا أحياء قبل كل قتل
-                                if myHRP and myHum2 and myHum2.Health > 0 then
-                                    pcall(function() MM2_DoKill(p, myHRP) end)
+                            -- اقتل لاعب واحد بس بكل دورة (آمن أكثر)
+                            local target = nil
+                            for _, p in pairs(Players:GetPlayers()) do
+                                if MM2_IsValidTarget(p) then
+                                    target = p
+                                    break
                                 end
-                                task.wait(0.5) -- wait أطول لمنع الكراش
                             end
-                            task.wait(0.8)
+                            if target then
+                                pcall(function() MM2_DoKill(target, myHRP) end)
+                            else
+                                task.wait(1)
+                            end
                         end
                     end
+                end)
+                if not ok then
+                    MM2_KillAllActive = false
+                    pcall(function() Options.MM2_KillAllAuto:SetValue(false) end)
                 end
                 Notify("☠️", Lang=="AR" and "Kill All Auto أوقف" or "Kill All Auto OFF")
             end)
@@ -2333,62 +2337,106 @@ if currentMapID == _A then
     local function MM2_DoFling(targetName)
         local t = Players:FindFirstChild(targetName)
         if not t or not t.Character then
-            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return
+            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found")
+            return
         end
         local myChar = LocalPlayer.Character
         local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         local tHRP   = t.Character:FindFirstChild("HumanoidRootPart")
+        local tHum   = t.Character:FindFirstChildOfClass("Humanoid")
         if not myHRP or not tHRP or not myHum then return end
 
         local savedPos = myHRP.CFrame
 
-        -- Method: Sit inside target → launch OUR body at max speed through them
-        -- We control OUR character so BodyVelocity on ours WORKS and physics pushes them
-        myHRP.CFrame = tHRP.CFrame  -- teleport inside them first
+        -- خلي شخصيتنا قابلة للحركة الحرة
+        pcall(function()
+            myHum.PlatformStand = true
+        end)
 
-        -- Remove old fling objects if any
+        -- شيل كل BodyMover القديمة
         for _, v in pairs(myHRP:GetChildren()) do
-            if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG" then v:Destroy() end
+            if v:IsA("BodyMover") or v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG"
+               or v.Name == "BS_FlingAV" then
+                v:Destroy()
+            end
         end
 
+        -- روح فوق الهدف بشوي
+        myHRP.CFrame = tHRP.CFrame + Vector3.new(0, 3, 0)
+        task.wait(0.05)
+
+        -- AssemblyAngularVelocity = طريقة 2024-2026 الشغالة
+        -- تدور شخصيتنا بسرعة جنونية وتصطدم بالهدف
+        pcall(function()
+            myHRP.CanCollide = true
+            myHRP.Massless = false
+            myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            myHRP.AssemblyAngularVelocity = Vector3.new(
+                math.random(-50000, 50000),
+                math.random(-50000, 50000),
+                math.random(-50000, 50000)
+            )
+        end)
+
+        -- BodyAngularVelocity احتياطي للـ executors اللي ما تدعم الـ Assembly
+        local bav = Instance.new("BodyAngularVelocity")
+        bav.Name = "BS_FlingAV"
+        bav.AngularVelocity = Vector3.new(math.huge, math.huge, math.huge)
+        bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bav.P = math.huge
+        bav.Parent = myHRP
+
+        -- BodyVelocity يدفع شخصيتنا داخل الهدف
         local bv = Instance.new("BodyVelocity")
         bv.Name = "BS_FlingBV"
-        bv.MaxForce  = Vector3.new(math.huge, math.huge, math.huge)
-        bv.P         = math.huge
-        -- Random diagonal upward direction for chaos
-        bv.Velocity  = Vector3.new(
-            math.random(-1,1) * math.random(400,900),
-            math.random(300,700),
-            math.random(-1,1) * math.random(400,900)
+        bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bv.P = math.huge
+        bv.Velocity = Vector3.new(
+            math.random(-100, 100),
+            math.random(50, 200),
+            math.random(-100, 100)
         )
         bv.Parent = myHRP
 
-        local bg = Instance.new("BodyGyro")
-        bg.Name      = "BS_FlingBG"
-        bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-        bg.D         = 0
-        bg.CFrame    = myHRP.CFrame
-        bg.Parent    = myHRP
-
-        -- Spam our position inside theirs to maximize physics impact
+        -- نظل ندفع شخصيتنا في موقع الهدف 0.8 ثانية
         task.spawn(function()
-            for i = 1, 6 do
-                if tHRP and tHRP.Parent then
+            local startTime = tick()
+            while tick() - startTime < 0.8 do
+                if tHRP and tHRP.Parent and myHRP and myHRP.Parent then
                     myHRP.CFrame = tHRP.CFrame
+                    -- زيد velocity للضحية مباشرة (network owner trick)
+                    pcall(function()
+                        tHRP.AssemblyLinearVelocity = Vector3.new(
+                            math.random(-200, 200),
+                            math.random(100, 300),
+                            math.random(-200, 200)
+                        )
+                        tHRP.AssemblyAngularVelocity = Vector3.new(
+                            math.random(-1000, 1000),
+                            math.random(-1000, 1000),
+                            math.random(-1000, 1000)
+                        )
+                    end)
                 end
-                task.wait(0.04)
+                task.wait()
             end
         end)
 
-        -- Clean up after 1.5s and return home
-        task.delay(1.5, function()
+        -- نظف ورجع
+        task.delay(1.2, function()
             pcall(function()
-                if myHRP:FindFirstChild("BS_FlingBV") then myHRP.BS_FlingBV:Destroy() end
-                if myHRP:FindFirstChild("BS_FlingBG") then myHRP.BS_FlingBG:Destroy() end
+                for _, v in pairs(myHRP:GetChildren()) do
+                    if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG"
+                       or v.Name == "BS_FlingAV" then
+                        v:Destroy()
+                    end
+                end
+                myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                myHum.PlatformStand = false
+                myHRP.CFrame = savedPos
             end)
-            task.wait(0.1)
-            pcall(function() myHRP.CFrame = savedPos end)
         end)
 
         Notify("🌪️", (Lang=="AR" and "فلنق: " or "Flung: ") .. t.Name)
