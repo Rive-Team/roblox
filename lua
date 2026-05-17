@@ -185,8 +185,6 @@ local _pid = game.PlaceId
 
 -- PlaceId check
 if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC then
-    warn("[Bo.Sqr] This script only works in MM2, Kingdom World or TimeBomb Duels!")
-    warn("[Bo.Sqr] Current PlaceId: " .. tostring(_pid))
     return
 end
 
@@ -317,8 +315,6 @@ local _fluentOk = pcall(function()
 end)
 if not _fluentOk or not Fluent then
     -- Show error and exit gracefully
-    warn("[Bo.Sqr] فشل تحميل Fluent UI — تحقق من اتصال الإنترنت")
-    warn("[Bo.Sqr] Failed to load Fluent UI - check internet connection")
     return
 end
 
@@ -1301,12 +1297,12 @@ if currentMapID == _A then
     local FovCircleToggle = Tabs.Combat:AddToggle("MM2_FovCircle", { Title = "⭕ دائرة FOV", Default = true })
     FovCircleToggle:OnChanged(function() FOV_CIRCLE = Options.MM2_FovCircle.Value end)
     local AimSmooth = Tabs.Combat:AddSlider("MM2_AimSmooth", {
-        Title = "🎚️ سلاسة التقفيل", Min = 1, Max = 100, Default = 15, Rounding = 5,
-        Callback = function(v) AIM_SMOOTHNESS = v/100 end
+        Title = "🎚️ سلاسة التقفيل", Min = 1, Max = 100, Default = 15, Rounding = 0,
+        Callback = function(v) AIM_SMOOTHNESS = math.floor(v + 0.5) / 100 end
     })
     local AimFovSlider = Tabs.Combat:AddSlider("MM2_AimFov", {
         Title = "📐 نطاق FOV (px)", Min = 50, Max = 400, Default = 150, Rounding = 10,
-        Callback = function(v) AIM_FOV = v end
+        Callback = function(v) AIM_FOV = math.floor(v + 0.5) end
     })
     local AimPartDrop = Tabs.Combat:AddDropdown("MM2_AimPart", {
         Title = "🎯 جزء الهدف", Values = {"Head","HumanoidRootPart","Torso"}, Multi = false, Default = "Head"
@@ -1328,34 +1324,54 @@ if currentMapID == _A then
     local GET_GUN_ENABLED = false
     local getGunConn = nil
 
-    -- Get Gun - الطريقة الحقيقية من سورس open-source
-    -- بدل ما نتيليبورت للسلاح، نجيب السلاح إلينا!
+    -- Get Gun - نفس طريقة TP to Dropped Gun (deep search 4 levels)
     local function tryGetGun()
         local myChar = LocalPlayer.Character
         local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if not myHRP or not myHum or myHum.Health <= 0 then return end
+        if not myHRP or not myHum or myHum.Health <= 0 then return false end
 
-        -- شيك هل عندنا سلاح قبل
+        -- شيك هل عندنا سلاح بالفعل
         for _, t in pairs(myChar:GetChildren()) do
             if t:IsA("Tool") then
                 local n = t.Name:lower()
                 if n:find("gun") or n:find("revolver") or n:find("pistol") then
-                    return -- معنا سلاح بالفعل
+                    return false  -- معنا سلاح
                 end
             end
         end
 
-        -- الطريقة الصحيحة: GunDrop في workspace (الاسم الفعلي في MM2)
-        local gundrop = workspace:FindFirstChild("GunDrop")
-        if gundrop then
-            pcall(function()
-                -- ✅ نجيب السلاح إلينا (مش نتيليبورت له)
-                gundrop.CFrame = myHRP.CFrame
-            end)
-            Notify("🔫 ✅", Lang=="AR" and "السلاح جاء إليك!" or "Gun brought to you!")
-            return
+        -- ابحث بعمق (نفس findGun من TP button)
+        local function findGun(parent, depth)
+            depth = depth or 0
+            if depth > 4 then return nil end
+            for _, c in pairs(parent:GetChildren()) do
+                if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
+                    return c
+                end
+                if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
+                    local r = findGun(c, depth + 1)
+                    if r then return r end
+                end
+            end
+            return nil
         end
+
+        local gun = findGun(workspace, 0)
+        if gun then
+            pcall(function()
+                if gun:IsA("BasePart") then
+                    gun.CFrame = myHRP.CFrame
+                elseif gun:IsA("Tool") then
+                    local handle = gun:FindFirstChild("Handle")
+                    if handle then handle.CFrame = myHRP.CFrame end
+                elseif gun:IsA("Model") and gun.PrimaryPart then
+                    gun:SetPrimaryPartCFrame(myHRP.CFrame)
+                end
+            end)
+            return true
+        end
+        return false
     end
 
     local GetGunToggle = Tabs.Combat:AddToggle("MM2_GetGun", {
@@ -1446,111 +1462,7 @@ if currentMapID == _A then
     end)
 
     -- قائمة اللاعبين
-    -- ── Fling ─────────────────────────────────────
-    Tabs.Combat:AddSection("🌪️ Fling")
-
-    local MM2_FlingTarget = nil
-    local _flingNames = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then table.insert(_flingNames, p.Name) end
-    end
-    if #_flingNames == 0 then _flingNames = {"..."} end
-
-    local MM2_FlingDrop = Tabs.Combat:AddDropdown("MM2_FlingTarget", {
-        Title = Lang=="AR" and "🌪️ اختر هدف الفلنق" or "🌪️ Fling Target",
-        Values = _flingNames,
-        Multi = false, Default = _flingNames[1]
-    })
-    if _flingNames[1] ~= "..." then MM2_FlingTarget = _flingNames[1] end
-    MM2_FlingDrop:OnChanged(function(v)
-        if v and v ~= "-- لا يوجد لاعبون --" then MM2_FlingTarget = v end
-    end)
-
-    local function MM2_DoFling(targetName)
-        local t = Players:FindFirstChild(targetName)
-        if not t or not t.Character then
-            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return
-        end
-        local myChar = LocalPlayer.Character
-        local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        local tHRP   = t.Character:FindFirstChild("HumanoidRootPart")
-        if not myHRP or not tHRP or not myHum then return end
-
-        local savedPos = myHRP.CFrame
-
-        -- Method: Sit inside target → launch OUR body at max speed through them
-        -- We control OUR character so BodyVelocity on ours WORKS and physics pushes them
-        myHRP.CFrame = tHRP.CFrame  -- teleport inside them first
-
-        -- Remove old fling objects if any
-        for _, v in pairs(myHRP:GetChildren()) do
-            if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG" then v:Destroy() end
-        end
-
-        local bv = Instance.new("BodyVelocity")
-        bv.Name = "BS_FlingBV"
-        bv.MaxForce  = Vector3.new(math.huge, math.huge, math.huge)
-        bv.P         = math.huge
-        -- Random diagonal upward direction for chaos
-        bv.Velocity  = Vector3.new(
-            math.random(-1,1) * math.random(400,900),
-            math.random(300,700),
-            math.random(-1,1) * math.random(400,900)
-        )
-        bv.Parent = myHRP
-
-        local bg = Instance.new("BodyGyro")
-        bg.Name      = "BS_FlingBG"
-        bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-        bg.D         = 0
-        bg.CFrame    = myHRP.CFrame
-        bg.Parent    = myHRP
-
-        -- Spam our position inside theirs to maximize physics impact
-        task.spawn(function()
-            for i = 1, 6 do
-                if tHRP and tHRP.Parent then
-                    myHRP.CFrame = tHRP.CFrame
-                end
-                task.wait(0.04)
-            end
-        end)
-
-        -- Clean up after 1.5s and return home
-        task.delay(1.5, function()
-            pcall(function()
-                if myHRP:FindFirstChild("BS_FlingBV") then myHRP.BS_FlingBV:Destroy() end
-                if myHRP:FindFirstChild("BS_FlingBG") then myHRP.BS_FlingBG:Destroy() end
-            end)
-            task.wait(0.1)
-            pcall(function() myHRP.CFrame = savedPos end)
-        end)
-
-        Notify("🌪️", (Lang=="AR" and "فلنق: " or "Flung: ") .. t.Name)
-    end
-
-    Tabs.Combat:AddButton({
-        Title = "🌪️ " .. (Lang=="AR" and "فلنق اللاعب المختار" or "Fling Selected Player"),
-        Callback = function()
-            if not MM2_FlingTarget then Notify("⚠️", Lang=="AR" and "اختر لاعباً" or "Select a player") return end
-            MM2_DoFling(MM2_FlingTarget)
-        end
-    })
-    Tabs.Combat:AddButton({
-        Title = "🔄 " .. (Lang=="AR" and "تحديث قائمة الفلنق" or "Refresh Fling List"),
-        Callback = function()
-            local names = {}
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer then table.insert(names, p.Name) end
-            end
-            if #names == 0 then names = {"..."} end
-            pcall(function() MM2_FlingDrop:SetValues(names) end)
-            if names[1] ~= "..." then MM2_FlingTarget = names[1] end
-            Notify("🔄", Lang=="AR" and "تم تحديث القائمة" or "List refreshed")
-        end
-    })
-    Tabs.Combat:AddButton({
+        Tabs.Combat:AddButton({
         Title = "🌪️ " .. (Lang=="AR" and "فلنق الجميع" or "Fling Everyone"),
         Callback = function()
             for _, p in pairs(Players:GetPlayers()) do
@@ -1587,19 +1499,7 @@ if currentMapID == _A then
             Notify("🔄",L("list_updated").." | "..tostring(MM2_SelectedTarget))
         end
     })
-    Tabs.Combat:AddButton({
-        Title = "🚀 " .. L("tp_player"),
-        Callback = function()
-            if not MM2_SelectedTarget or MM2_SelectedTarget=="-- لا يوجد لاعبون --" then Notify("⚠️","اختر لاعباً أولاً!") return end
-            local t=Players:FindFirstChild(MM2_SelectedTarget)
-            local myHRP=LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") and myHRP then
-                myHRP.CFrame=t.Character.HumanoidRootPart.CFrame*CFrame.new(0,0,3)
-                Notify("🚀",L("tp_done").." "..t.Name)
-            else Notify("⚠️",L("not_found")) end
-        end
-    })
-    Tabs.Combat:AddButton({
+        Tabs.Combat:AddButton({
         Title = "💀 " .. L("kill_player"),
         Description = Lang=="AR" and "يستخدم طريقة السكين الحقيقية" or "Uses real knife method",
         Callback = function()
@@ -1956,8 +1856,7 @@ if currentMapID == _A then
             if not MM2_AutoFarmActive_C then break end
             _safety = _safety + 1
             if _safety > 200 then break end
-            myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
-                         * CFrame.Angles(0, 0, math.rad(180))
+            myHRP.CFrame = CFrame.new(coin.Position + Vector3.new(0, 1, 0))
             RunService.Stepped:Wait()
         until not coin:IsDescendantOf(workspace) or coin.Name ~= "Coin_Server"
         task.wait(0.2)
@@ -2094,8 +1993,7 @@ if currentMapID == _A then
             for _, coin in pairs(cc:GetChildren()) do
                 if coin.Name == "Coin_Server" and coin:IsDescendantOf(workspace) then
                     pcall(function()
-                        myHRP.CFrame = CFrame.new(coin.Position - Vector3.new(0, 2.5, 0))
-                                     * CFrame.Angles(0, 0, math.rad(180))
+                        myHRP.CFrame = CFrame.new(coin.Position + Vector3.new(0, 1, 0))
                         task.wait(0.25)  -- أبطأ شوي لتفادي البان
                         count = count + 1
                     end)
@@ -2261,7 +2159,11 @@ if currentMapID == _A then
     Tabs.Player:AddSection("📊 حركة اللاعب")
     Tabs.Player:AddSlider("MM2_WalkSpeed", {
         Title = "🏃 سرعة المشي", Min = 1, Max = 200, Default = 16, Rounding = 0,
-        Callback = function(v) if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed=v end end
+        Callback = function(v)
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = math.floor(v + 0.5)
+            end
+        end
     })
     Tabs.Player:AddSlider("MM2_JumpPower", {
         Title = "🦘 قوة القفز", Min = 1, Max = 300, Default = 50, Rounding = 0,
@@ -2269,7 +2171,7 @@ if currentMapID == _A then
     })
     Tabs.Player:AddSlider("MM2_FOV_Cam", {
         Title = "👁️ مجال الرؤية (FOV)", Min = 40, Max = 120, Default = 70, Rounding = 0,
-        Callback = function(v) Camera.FieldOfView=v end
+        Callback = function(v) Camera.FieldOfView = math.floor(v + 0.5) end
     })
     Tabs.Player:AddSection("🚀 حركة إضافية")
     local FlyToggle = Tabs.Player:AddToggle("MM2_Fly", { Title = "✈️ طيران (WASD+Space/Shift)", Default = false })
@@ -2280,7 +2182,7 @@ if currentMapID == _A then
     end)
     Tabs.Player:AddSlider("MM2_FlySpeed", {
         Title = "✈️ سرعة الطيران", Min = 10, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v) FLY_SPEED=v end
+        Callback = function(v) FLY_SPEED = math.floor(v + 0.5) end
     })
     local InfJumpToggle = Tabs.Player:AddToggle("MM2_InfJump", { Title = "⬆️ قفز لا نهائي", Default = false })
     InfJumpToggle:OnChanged(function()
@@ -2298,6 +2200,130 @@ if currentMapID == _A then
         NO_CLIP = Options.MM2_Noclip.Value
         if NO_CLIP then startNoclip() else stopNoclip() end
     end)
+
+    -- ══════════════════════════════════════════════
+    -- 🚀 PLAYER TELEPORTS (نقل + فلنق)
+    -- ══════════════════════════════════════════════
+    Tabs.Player:AddSection("🚀 " .. (Lang=="AR" and "نقل اللاعبين" or "Player Teleports"))
+
+    Tabs.Player:AddButton({
+        Title = "🚀 " .. L("tp_player"),
+        Callback = function()
+            if not MM2_SelectedTarget or MM2_SelectedTarget=="-- لا يوجد لاعبون --" then Notify("⚠️","اختر لاعباً أولاً!") return end
+            local t=Players:FindFirstChild(MM2_SelectedTarget)
+            local myHRP=LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") and myHRP then
+                myHRP.CFrame=t.Character.HumanoidRootPart.CFrame*CFrame.new(0,0,3)
+                Notify("🚀",L("tp_done").." "..t.Name)
+            else Notify("⚠️",L("not_found")) end
+        end
+    })
+
+    -- ── Fling ─────────────────────────────────────
+    Tabs.Player:AddSection("🌪️ Fling")
+
+    local MM2_FlingTarget = nil
+    local _flingNames = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(_flingNames, p.Name) end
+    end
+    if #_flingNames == 0 then _flingNames = {"..."} end
+
+    local MM2_FlingDrop = Tabs.Player:AddDropdown("MM2_FlingTarget", {
+        Title = Lang=="AR" and "🌪️ اختر هدف الفلنق" or "🌪️ Fling Target",
+        Values = _flingNames,
+        Multi = false, Default = _flingNames[1]
+    })
+    if _flingNames[1] ~= "..." then MM2_FlingTarget = _flingNames[1] end
+    MM2_FlingDrop:OnChanged(function(v)
+        if v and v ~= "-- لا يوجد لاعبون --" then MM2_FlingTarget = v end
+    end)
+
+    local function MM2_DoFling(targetName)
+        local t = Players:FindFirstChild(targetName)
+        if not t or not t.Character then
+            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return
+        end
+        local myChar = LocalPlayer.Character
+        local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        local tHRP   = t.Character:FindFirstChild("HumanoidRootPart")
+        if not myHRP or not tHRP or not myHum then return end
+
+        local savedPos = myHRP.CFrame
+
+        -- Method: Sit inside target → launch OUR body at max speed through them
+        -- We control OUR character so BodyVelocity on ours WORKS and physics pushes them
+        myHRP.CFrame = tHRP.CFrame  -- teleport inside them first
+
+        -- Remove old fling objects if any
+        for _, v in pairs(myHRP:GetChildren()) do
+            if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG" then v:Destroy() end
+        end
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = "BS_FlingBV"
+        bv.MaxForce  = Vector3.new(math.huge, math.huge, math.huge)
+        bv.P         = math.huge
+        -- Random diagonal upward direction for chaos
+        bv.Velocity  = Vector3.new(
+            math.random(-1,1) * math.random(400,900),
+            math.random(300,700),
+            math.random(-1,1) * math.random(400,900)
+        )
+        bv.Parent = myHRP
+
+        local bg = Instance.new("BodyGyro")
+        bg.Name      = "BS_FlingBG"
+        bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bg.D         = 0
+        bg.CFrame    = myHRP.CFrame
+        bg.Parent    = myHRP
+
+        -- Spam our position inside theirs to maximize physics impact
+        task.spawn(function()
+            for i = 1, 6 do
+                if tHRP and tHRP.Parent then
+                    myHRP.CFrame = tHRP.CFrame
+                end
+                task.wait(0.04)
+            end
+        end)
+
+        -- Clean up after 1.5s and return home
+        task.delay(1.5, function()
+            pcall(function()
+                if myHRP:FindFirstChild("BS_FlingBV") then myHRP.BS_FlingBV:Destroy() end
+                if myHRP:FindFirstChild("BS_FlingBG") then myHRP.BS_FlingBG:Destroy() end
+            end)
+            task.wait(0.1)
+            pcall(function() myHRP.CFrame = savedPos end)
+        end)
+
+        Notify("🌪️", (Lang=="AR" and "فلنق: " or "Flung: ") .. t.Name)
+    end
+
+    Tabs.Player:AddButton({
+        Title = "🌪️ " .. (Lang=="AR" and "فلنق اللاعب المختار" or "Fling Selected Player"),
+        Callback = function()
+            if not MM2_FlingTarget then Notify("⚠️", Lang=="AR" and "اختر لاعباً" or "Select a player") return end
+            MM2_DoFling(MM2_FlingTarget)
+        end
+    })
+    Tabs.Player:AddButton({
+        Title = "🔄 " .. (Lang=="AR" and "تحديث قائمة الفلنق" or "Refresh Fling List"),
+        Callback = function()
+            local names = {}
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer then table.insert(names, p.Name) end
+            end
+            if #names == 0 then names = {"..."} end
+            pcall(function() MM2_FlingDrop:SetValues(names) end)
+            if names[1] ~= "..." then MM2_FlingTarget = names[1] end
+            Notify("🔄", Lang=="AR" and "تم تحديث القائمة" or "List refreshed")
+        end
+    })
+
 
     -- ══════════════════════════════════════════════
     -- 🚀 PLAYER LAUNCHER (تطير لاعب لفوق)
@@ -4638,8 +4664,6 @@ elseif currentMapID == _C then
 
 else
     -- ماب غير معروف
-    warn("⚠️ Bo.Sqr | هذا السكربت مخصص لـ MM2, عالم المملكة, أو TimeBomb Duels فقط!")
-    warn("PlaceId الحالي: " .. tostring(currentMapID))
 end
 
 -- ══════════════════════════════════════════════
