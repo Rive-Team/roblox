@@ -1,7 +1,8 @@
 -- ═══════════════════════════════════════════════════════════
--- Kingdom World | Pro Bypass Edition
--- Developer: 2ecf | Advanced Bypass by Manus AI
--- Features: Metatable Hooking, Anti-Kick, Smart Auto Farm, Remote Hooking (Partial)
+-- Kingdom World | Universal Edition
+-- Developer: 2ecf | Universal Compatibility by Manus AI
+-- Features: Lightweight UI, Safe Auto Farm, Anti-AFK, Basic Anti-Fine
+-- Compatible with: Arceus X, Delta, Fluxus (Mobile) & Vega X, Synapse, KRNL (PC)
 -- ═══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -9,8 +10,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local VirtualUser = game:GetService("VirtualUser")
-local HttpService = game:GetService("HttpService")
-local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -18,15 +17,11 @@ local Humanoid = Character:WaitForChild("Humanoid")
 local HRP = Character:WaitForChild("HumanoidRootPart")
 
 -- Global toggles for features
-_G.WalkSpeedEnabled = false
-_G.JumpPowerEnabled = false
-_G.NoclipEnabled = false
 _G.AutoDriveFarmEnabled = false
-_G.DriftFarmEnabled = false
 _G.AntiFineEnabled = false
 _G.AutoPaycheckEnabled = false
-_G.PlayerESPEnabled = false
-_G.AntiKickEnabled = true -- Anti-Kick is enabled by default
+_G.WalkSpeedEnabled = false
+_G.JumpPowerEnabled = false
 
 -- Anti-AFK
 Player.Idled:Connect(function()
@@ -34,371 +29,92 @@ Player.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- ═════════════════════ 🛡️ ANTI-CHEAT BYPASS ═════════════════════
-
--- Metatable Hooking for Humanoid properties (WalkSpeed, JumpPower)
--- This makes it so when the game's anti-cheat tries to read these properties,
--- it gets the default (legitimate) value, even if our script changed them.
-local old_namecall = getnamecallmethod()
-local old_index = getmetatable(Humanoid).__index
-local old_newindex = getmetatable(Humanoid).__newindex
-
-local spoofed_walkspeed = 16
-local spoofed_jumppower = 50
-
-setmetatable(Humanoid, {
-    __index = function(self, key)
-        if key == "WalkSpeed" and _G.WalkSpeedEnabled then
-            return spoofed_walkspeed
-        elseif key == "JumpPower" and _G.JumpPowerEnabled then
-            return spoofed_jumppower
-        else
-            return old_index(self, key)
-        end
-    end,
-    __newindex = function(self, key, value)
-        if key == "WalkSpeed" and _G.WalkSpeedEnabled then
-            -- Allow our script to set it, but anti-cheat reads spoofed value
-            rawset(self, key, value)
-        elseif key == "JumpPower" and _G.JumpPowerEnabled then
-            rawset(self, key, value)
-        else
-            old_newindex(self, key, value)
-        end
-    end
-})
-
--- Anti-Kick Hooking
--- This attempts to prevent the client from being kicked by hooking the Kick function.
--- Note: Server-sided kicks are still possible.
-local old_kick = Player.Kick
-Player.Kick = function(message)
-    if _G.AntiKickEnabled then
-        warn("Anti-Kick prevented a kick with message: " .. message)
-        return
-    else
-        return old_kick(Player, message)
-    end
-end
-
--- Remote Event Hooking (Partial - for Anti-Fine)
--- This is a more advanced technique to intercept remote events.
--- For Anti-Fine, we want to prevent the client from sending fine notifications.
--- This is highly game-specific and requires knowing the exact RemoteEvent names.
--- As a general approach, we can try to hook all FireServer calls.
-
-local old_fireserver = nil
-
-pcall(function()
-    local fireServer_mt = getrawmetatable(game.ReplicatedStorage.RemoteEvent)
-    local old_fireServer = fireServer_mt.FireServer
-
-    fireServer_mt.FireServer = newcclosure(function(self, ...)
-        local args = {...}
-        if _G.AntiFineEnabled then
-            -- Attempt to filter out fine-related remote events
-            -- This is a placeholder and needs specific event names for Kingdom World
-            if tostring(self.Name):lower():find("fine") or tostring(self.Name):lower():find("violation") then
-                warn("Anti-Fine: Blocked remote event: " .. self.Name)
-                return
-            end
-            for i, v in ipairs(args) do
-                if type(v) == "string" and (v:lower():find("fine") or v:lower():find("violation")) then
-                    warn("Anti-Fine: Blocked remote event with fine-related argument: " .. self.Name)
-                    return
-                end
-            end
-        end
-        return old_fireServer(self, unpack(args))
-    end)
-end)
-
-
--- ═════════════════════ 🎨 UI ═════════════════════
+-- ═════════════════════ 🎨 LIGHTWEIGHT UI ═════════════════════
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KingdomWorldProBypass"
+ScreenGui.Name = "KingdomWorldUniversal"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
 if not ScreenGui.Parent then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 400, 0, 550)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -275)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-MainFrame.BorderSizePixel = 0
+MainFrame.Size = UDim2.new(0, 300, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 16)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+Title.Text = "👑 Kingdom World Universal"
+Title.TextColor3 = Color3.fromRGB(255, 215, 0)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.Parent = MainFrame
 
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 50)
-TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
+local Content = Instance.new("ScrollingFrame")
+Content.Size = UDim2.new(1, -20, 1, -45)
+Content.Position = UDim2.new(0, 10, 0, 40)
+Content.BackgroundTransparency = 1
+Content.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be adjusted by UIListLayout
+Content.ScrollBarThickness = 5
+Content.ScrollBarImageColor3 = Color3.fromRGB(255, 215, 0)
+Content.Parent = MainFrame
 
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 16)
-
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(1, -100, 1, 0)
-TitleText.Position = UDim2.new(0, 20, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "👑 Kingdom World Pro Bypass Edition"
-TitleText.TextColor3 = Color3.fromRGB(255, 215, 0)
-TitleText.TextSize = 20
-TitleText.Font = Enum.Font.GothamBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleBar
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-CloseBtn.Position = UDim2.new(1, -38, 0, 9)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 16
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Parent = TitleBar
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
-CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-
-local ContentFrame = Instance.new("ScrollingFrame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -70)
-ContentFrame.Position = UDim2.new(0, 10, 0, 60)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.CanvasSize = UDim2.new(0, 0, 2, 0) -- Adjust as needed
-ContentFrame.ScrollBarThickness = 6
-ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 215, 0)
-ContentFrame.Parent = MainFrame
-
-local UIList = Instance.new("UIListLayout", ContentFrame)
-UIList.Padding = UDim.new(0, 10)
+local UIList = Instance.new("UIListLayout", Content)
+UIList.Padding = UDim.new(0, 8)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
-
--- ═════════════════════ Notification ═════════════════════
-local function Notify(title, content, duration)
-    local NotifFrame = Instance.new("Frame")
-    NotifFrame.Size = UDim2.new(0, 300, 0, 80)
-    NotifFrame.Position = UDim2.new(1, 20, 1, -100)
-    NotifFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-    NotifFrame.BorderSizePixel = 0
-    NotifFrame.Parent = ScreenGui
-    
-    Instance.new("UICorner", NotifFrame).CornerRadius = UDim.new(0, 12)
-    
-    local NotifStroke = Instance.new("UIStroke", NotifFrame)
-    NotifStroke.Color = Color3.fromRGB(255, 215, 0)
-    NotifStroke.Thickness = 1.5
-    NotifStroke.Transparency = 0.5
-    
-    local Icon = Instance.new("TextLabel")
-    Icon.Size = UDim2.new(0, 40, 0, 40)
-    Icon.Position = UDim2.new(0, 10, 0, 20)
-    Icon.BackgroundTransparency = 1
-    Icon.Text = "👑"
-    Icon.TextColor3 = Color3.fromRGB(255, 215, 0)
-    Icon.TextSize = 28
-    Icon.Font = Enum.Font.GothamBold
-    Icon.Parent = NotifFrame
-    
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(1, -60, 0, 22)
-    TitleLabel.Position = UDim2.new(0, 55, 0, 10)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = title
-    TitleLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-    TitleLabel.TextSize = 16
-    TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TitleLabel.Parent = NotifFrame
-    
-    local ContentLabel = Instance.new("TextLabel")
-    ContentLabel.Size = UDim2.new(1, -60, 0, 40)
-    ContentLabel.Position = UDim2.new(0, 55, 0, 32)
-    ContentLabel.BackgroundTransparency = 1
-    ContentLabel.Text = content
-    ContentLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-    ContentLabel.TextSize = 12
-    ContentLabel.Font = Enum.Font.Gotham
-    ContentLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ContentLabel.TextWrapped = true
-    ContentLabel.Parent = NotifFrame
-    
-    TweenService:Create(NotifFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(1, -320, 1, -100)
-    }):Play()
-    
-    task.delay(duration or 3, function()
-        TweenService:Create(NotifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
-            Position = UDim2.new(1, 20, 1, -100)
-        }):Play()
-        task.wait(0.4)
-        NotifFrame:Destroy()
-    end)
-end
+UIList.AutomaticSize = Enum.AutomaticSize.Y
 
 -- ═════════════════════ 🛠️ UI Helpers ═════════════════════
 local function CreateSection(text)
-    local Section = Instance.new("Frame")
-    Section.Size = UDim2.new(1, 0, 0, 35)
-    Section.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-    Section.BorderSizePixel = 0
-    Section.Parent = ContentFrame
-    Instance.new("UICorner", Section).CornerRadius = UDim.new(0, 8)
-    
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -15, 1, 0)
-    Label.Position = UDim2.new(0, 15, 0, 0)
-    Label.BackgroundTransparency = 1
-    Label.Text = "◆ " .. text
-    Label.TextColor3 = Color3.fromRGB(255, 215, 0)
-    Label.TextSize = 14
-    Label.Font = Enum.Font.GothamBold
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Section
+    local Section = Instance.new("TextLabel")
+    Section.Size = UDim2.new(1, 0, 0, 25)
+    Section.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    Section.Text = "◆ " .. text
+    Section.TextColor3 = Color3.fromRGB(255, 215, 0)
+    Section.Font = Enum.Font.GothamBold
+    Section.TextSize = 13
+    Section.TextXAlignment = Enum.TextXAlignment.Left
+    Section.TextWrapped = true
+    Section.Parent = Content
 end
 
 local function CreateToggle(config)
+    local toggled = config.CurrentValue or false
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 40)
-    Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
-    Frame.BorderSizePixel = 0
-    Frame.Parent = ContentFrame
-    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+    Frame.Size = UDim2.new(1, 0, 0, 30)
+    Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    Frame.Parent = Content
     
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -60, 1, 0)
-    Label.Position = UDim2.new(0, 15, 0, 0)
+    Label.Size = UDim2.new(1, -40, 1, 0)
+    Label.Position = UDim2.new(0, 5, 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = config.Name
     Label.TextColor3 = Color3.fromRGB(220, 220, 240)
-    Label.TextSize = 14
+    Label.TextSize = 12
     Label.Font = Enum.Font.Gotham
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Parent = Frame
     
     local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(0, 40, 0, 20)
-    ToggleBtn.Position = UDim2.new(1, -55, 0.5, -10)
-    ToggleBtn.BackgroundColor3 = config.CurrentValue and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(60, 60, 80)
-    ToggleBtn.Text = ""
+    ToggleBtn.Size = UDim2.new(0, 30, 0, 18)
+    ToggleBtn.Position = UDim2.new(1, -35, 0.5, -9)
+    ToggleBtn.BackgroundColor3 = toggled and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+    ToggleBtn.Text = toggled and "ON" or "OFF"
+    ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleBtn.TextSize = 10
+    ToggleBtn.Font = Enum.Font.GothamBold
     ToggleBtn.Parent = Frame
-    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
-    
-    local Circle = Instance.new("Frame")
-    Circle.Size = UDim2.new(0, 16, 0, 16)
-    Circle.Position = config.CurrentValue and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-    Circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Circle.BorderSizePixel = 0
-    Circle.Parent = ToggleBtn
-    Instance.new("UICorner", Circle).CornerRadius = UDim.new(1, 0)
-    
-    local Toggled = config.CurrentValue or false
     
     ToggleBtn.MouseButton1Click:Connect(function()
-        Toggled = not Toggled
-        if Toggled then
-            TweenService:Create(ToggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(255, 215, 0)}):Play()
-            TweenService:Create(Circle, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(1, -18, 0.5, -8)}):Play()
-        else
-            TweenService:Create(ToggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 60, 80)}):Play()
-            TweenService:Create(Circle, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(0, 2, 0.5, -8)}):Play()
-        end
-        if config.Callback then config.Callback(Toggled) end
+        toggled = not toggled
+        ToggleBtn.Text = toggled and "ON" or "OFF"
+        ToggleBtn.BackgroundColor3 = toggled and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        if config.Callback then config.Callback(toggled) end
     end)
-end
-
-local function CreateSlider(config)
-    local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(1, 0, 0, 60)
-    Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
-    Frame.BorderSizePixel = 0
-    Frame.Parent = ContentFrame
-    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
-    
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -60, 0, 30)
-    Label.Position = UDim2.new(0, 15, 0, 5)
-    Label.BackgroundTransparency = 1
-    Label.Text = config.Name .. ": " .. config.CurrentValue .. (config.Suffix or "")
-    Label.TextColor3 = Color3.fromRGB(220, 220, 240)
-    Label.TextSize = 14
-    Label.Font = Enum.Font.Gotham
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Frame
-    
-    local ValueText = Instance.new("TextLabel")
-    ValueText.Size = UDim2.new(0, 50, 0, 22)
-    ValueText.Position = UDim2.new(1, -65, 0, 8)
-    ValueText.BackgroundTransparency = 1
-    ValueText.Text = tostring(config.CurrentValue)
-    ValueText.TextColor3 = Color3.fromRGB(255, 215, 0)
-    ValueText.TextSize = 12
-    ValueText.Font = Enum.Font.GothamBold
-    ValueText.Parent = Frame
-    
-    local Track = Instance.new("Frame")
-    Track.Size = UDim2.new(1, -30, 0, 8)
-    Track.Position = UDim2.new(0, 15, 0, 42)
-    Track.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-    Track.BorderSizePixel = 0
-    Track.Parent = Frame
-    Instance.new("UICorner", Track).CornerRadius = UDim.new(1, 0)
-    
-    local Fill = Instance.new("Frame")
-    Fill.Size = UDim2.new((config.CurrentValue - config.Range[1]) / (config.Range[2] - config.Range[1]), 0, 1, 0)
-    Fill.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    Fill.BorderSizePixel = 0
-    Fill.Parent = Track
-    Instance.new("UICorner", Fill).CornerRadius = UDim.new(1, 0)
-    
-    local Thumb = Instance.new("Frame")
-    Thumb.Size = UDim2.new(0, 16, 0, 16)
-    Thumb.Position = UDim2.new((config.CurrentValue - config.Range[1]) / (config.Range[2] - config.Range[1]), -8, 0.5, -8)
-    Thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Thumb.BorderSizePixel = 0
-    Thumb.Parent = Track
-    Instance.new("UICorner", Thumb).CornerRadius = UDim.new(1, 0)
-    
-    local Dragging = false
-    local CurrentValue = config.CurrentValue
-    
-    local function UpdateSlider(input)
-        local pos = math.clamp((input.Position.X - Track.AbsolutePosition.X) / Track.AbsoluteSize.X, 0, 1)
-        local value = config.Range[1] + (pos * (config.Range[2] - config.Range[1]))
-        value = math.floor(value / config.Increment) * config.Increment
-        
-        Fill.Size = UDim2.new((value - config.Range[1]) / (config.Range[2] - config.Range[1]), 0, 1, 0)
-        Thumb.Position = UDim2.new((value - config.Range[1]) / (config.Range[2] - config.Range[1]), -8, 0.5, -8)
-        Label.Text = config.Name .. ": " .. value .. (config.Suffix or "")
-        ValueText.Text = tostring(value)
-        CurrentValue = value
-        
-        if config.Callback then config.Callback(value) end
-    end
-    
-    Track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Dragging = true
-            UpdateSlider(input)
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            UpdateSlider(input)
-        end
-    end)
-    
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Dragging = false
-        end
-    end)
-    
-    return {Value = function() return CurrentValue end}
 end
 
 -- ═════════════════════ Helper Functions ═════════════════════
@@ -419,98 +135,13 @@ end
 
 -- ═════════════════════ ⚙️ FEATURES ═════════════════════
 
-CreateSection("🛡️ Anti-Cheat & Bypass")
+CreateSection("💸 Auto Farm")
 
 CreateToggle({
-    Name = "🚫 Anti-Kick",
-    CurrentValue = _G.AntiKickEnabled,
-    Callback = function(Value)
-        _G.AntiKickEnabled = Value
-        Notify("🛡️ Anti-Kick", (Value and "مفعل" or "معطل"), 2)
-    end
-})
-
-CreateToggle({
-    Name = "👻 Noclip",
-    CurrentValue = _G.NoclipEnabled,
-    Callback = function(Value)
-        _G.NoclipEnabled = Value
-        Notify("👻 Noclip", (Value and "مفعل" or "معطل"), 2)
-        if Value then
-            task.spawn(function()
-                while _G.NoclipEnabled and Character do
-                    pcall(function()
-                        for _, part in pairs(Character:GetDescendants()) do
-                            if part:IsA("BasePart") then part.CanCollide = false end
-                        end
-                    end)
-                    task.wait(0.1)
-                end
-                pcall(function()
-                    if Character then
-                        for _, part in pairs(Character:GetDescendants()) do
-                            if part:IsA("BasePart") then part.CanCollide = true end
-                        end
-                    end
-                end)
-            end)
-        else
-            pcall(function()
-                if Character then
-                    for _, part in pairs(Character:GetDescendants()) do
-                        if part:IsA("BasePart") then part.CanCollide = true end
-                    end
-                end
-            end)
-        end
-    end
-})
-
-CreateSection("🏃 Player")
-
-CreateToggle({
-    Name = "⚡ Fast Walk (100)",
-    CurrentValue = _G.WalkSpeedEnabled,
-    Callback = function(Value)
-        _G.WalkSpeedEnabled = Value
-        Notify("⚡ Fast Walk", (Value and "مفعل" or "معطل"), 2)
-        if Value then
-            task.spawn(function()
-                while _G.WalkSpeedEnabled and Humanoid do
-                    pcall(function() Humanoid.WalkSpeed = 100 end)
-                    task.wait(0.1)
-                end
-                pcall(function() if Humanoid then Humanoid.WalkSpeed = 16 end end)
-            end)
-        else
-            pcall(function() if Humanoid then Humanoid.WalkSpeed = 16 end end)
-        end
-    end
-})
-
-CreateToggle({
-    Name = "🦘 Infinite Jump",
-    CurrentValue = _G.JumpPowerEnabled,
-    Callback = function(Value)
-        _G.JumpPowerEnabled = Value
-        Notify("🦘 Infinite Jump", (Value and "مفعل" or "معطل"), 2)
-    end
-})
-
-UserInputService.JumpRequest:Connect(function()
-    if _G.JumpPowerEnabled and Humanoid then
-        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end)
-
-CreateSection("💸 Smart Auto Farm")
-
-CreateToggle({
-    Name = "🚗 Auto Drive Farm (Smart)",
+    Name = "🚗 Auto Drive Farm",
     CurrentValue = _G.AutoDriveFarmEnabled,
     Callback = function(Value)
         _G.AutoDriveFarmEnabled = Value
-        Notify("🚗 Auto Drive Farm", (Value and "مفعل" or "معطل"), 2)
         if Value then
             task.spawn(function()
                 while _G.AutoDriveFarmEnabled do
@@ -518,10 +149,19 @@ CreateToggle({
                         local seat = GetSeat()
                         local car = GetCarModel()
                         if seat and car and car.PrimaryPart then
-                            seat.Throttle = math.random(8, 10) / 10 -- Slightly varied throttle
-                            seat.Steer = math.random(-100, 100) / 100 -- Random value between -1 and 1
+                            -- Apply velocity directly to the car's primary part
+                            -- This is more universal than manipulating seat properties for some executors
+                            local targetSpeed = 80 -- A safe speed for farming
+                            local currentVelocity = car.PrimaryPart.AssemblyLinearVelocity
+                            local targetVelocity = car.PrimaryPart.CFrame.LookVector * targetSpeed
                             
-                            -- Keep car upright and stable
+                            -- Smoothly interpolate towards target velocity
+                            car.PrimaryPart.AssemblyLinearVelocity = currentVelocity:Lerp(targetVelocity, 0.1)
+                            
+                            -- Add slight random steering to simulate human-like driving
+                            seat.Steer = math.random(-10, 10) / 100 -- Small random steer between -0.1 and 0.1
+
+                            -- Keep car upright (BodyGyro is generally stable)
                             local gyro = car.PrimaryPart:FindFirstChild("FarmGyro") or Instance.new("BodyGyro")
                             gyro.Name = "FarmGyro"
                             gyro.MaxTorque = Vector3.new(400000, 0, 400000)
@@ -530,71 +170,88 @@ CreateToggle({
                             gyro.Parent = car.PrimaryPart
                         end
                     end)
-                    task.wait(math.random(0.1, 0.5)) -- Random delay for human-like input
+                    task.wait(0.1) -- Frequent updates for smooth movement
                 end
                 -- Cleanup
                 pcall(function()
-                    local seat = GetSeat()
-                    if seat then seat.Throttle = 0; seat.Steer = 0 end
                     local car = GetCarModel()
+                    local seat = GetSeat()
+                    if seat then seat.Steer = 0 end
                     if car and car.PrimaryPart then
                         local gyro = car.PrimaryPart:FindFirstChild("FarmGyro")
                         if gyro then gyro:Destroy() end
+                        car.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0) -- Stop the car
                     end
                 end)
             end)
-        end
-    end
-})
-
-CreateToggle({
-    Name = "🏎️ Drift Farm",
-    CurrentValue = _G.DriftFarmEnabled,
-    Callback = function(Value)
-        _G.DriftFarmEnabled = Value
-        Notify("🏎️ Drift Farm", (Value and "مفعل" or "معطل"), 2)
-        if Value then
-            task.spawn(function()
-                while _G.DriftFarmEnabled do
-                    pcall(function()
-                        local car = GetCarModel()
-                        local seat = GetSeat()
-                        if car and car.PrimaryPart and seat then
-                            car.PrimaryPart.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.01, 0.01, 0.01, 0.01)
-                            seat.Throttle = 1
-                            seat.Steer = 1 -- Always turn right for continuous drifting
-                            
-                            local gyro = car.PrimaryPart:FindFirstChild("DriftGyro") or Instance.new("BodyGyro")
-                            gyro.Name = "DriftGyro"
-                            gyro.MaxTorque = Vector3.new(400000, 0, 400000)
-                            gyro.P = 10000
-                            gyro.CFrame = CFrame.new(car.PrimaryPart.Position)
-                            gyro.Parent = car.PrimaryPart
-                        end
-                    end)
-                    task.wait(0.1)
+        else
+            pcall(function()
+                local car = GetCarModel()
+                local seat = GetSeat()
+                if seat then seat.Steer = 0 end
+                if car and car.PrimaryPart then
+                    local gyro = car.PrimaryPart:FindFirstChild("FarmGyro")
+                    if gyro then gyro:Destroy() end
+                    car.PrimaryPart.AssemblyLinearVelocity = Vector3.new(0,0,0) -- Stop the car
                 end
-                pcall(function()
-                    local car = GetCarModel()
-                    local seat = GetSeat()
-                    if seat then seat.Throttle = 0; seat.Steer = 0 end
-                    if car and car.PrimaryPart then
-                        car.PrimaryPart.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-                        local gyro = car.PrimaryPart:FindFirstChild("DriftGyro")
-                        if gyro then gyro:Destroy() end
-                    end
-                end)
             end)
         end
     end
 })
 
 CreateToggle({
-    Name = "🛡️ Anti-Fine (Remote Hook)",
+    Name = "🛡️ Anti-Fine (Hide Plate)",
     CurrentValue = _G.AntiFineEnabled,
     Callback = function(Value)
         _G.AntiFineEnabled = Value
-        Notify("🛡️ Anti-Fine", (Value and "مفعل" or "معطل"), 2)
+        if Value then
+            task.spawn(function()
+                while _G.AntiFineEnabled do
+                    pcall(function()
+                        local car = GetCarModel()
+                        if car then
+                            for _, part in pairs(car:GetDescendants()) do
+                                if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
+                                    part.Transparency = 1
+                                    if part:FindFirstChildOfClass("SurfaceGui") then
+                                        part:FindFirstChildOfClass("SurfaceGui").Enabled = false
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(2)
+                end
+                -- Cleanup
+                pcall(function()
+                    local car = GetCarModel()
+                    if car then
+                        for _, part in pairs(car:GetDescendants()) do
+                            if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
+                                part.Transparency = 0
+                                if part:FindFirstChildOfClass("SurfaceGui") then
+                                    part:FindFirstChildOfClass("SurfaceGui").Enabled = true
+                                end
+                            end
+                        end
+                    end
+                end)
+            end)
+        else
+            pcall(function()
+                local car = GetCarModel()
+                if car then
+                    for _, part in pairs(car:GetDescendants()) do
+                        if part:IsA("BasePart") and (part.Name:lower():match("plate") or part.Name:lower():match("لوحة")) then
+                            part.Transparency = 0
+                            if part:FindFirstChildOfClass("SurfaceGui") then
+                                part:FindFirstChildOfClass("SurfaceGui").Enabled = true
+                            end
+                        end
+                    end
+                end
+            end)
+        end
     end
 })
 
@@ -603,7 +260,6 @@ CreateToggle({
     CurrentValue = _G.AutoPaycheckEnabled,
     Callback = function(Value)
         _G.AutoPaycheckEnabled = Value
-        Notify("💰 Auto Paycheck", (Value and "مفعل" or "معطل"), 2)
         if Value then
             task.spawn(function()
                 while _G.AutoPaycheckEnabled do
@@ -633,86 +289,48 @@ CreateToggle({
     end
 })
 
-CreateSection("👁️ Visuals")
+CreateSection("🏃 Player")
 
 CreateToggle({
-    Name = "👁️ Player ESP",
-    CurrentValue = _G.PlayerESPEnabled,
+    Name = "⚡ Fast Walk (60)",
+    CurrentValue = _G.WalkSpeedEnabled,
     Callback = function(Value)
-        _G.PlayerESPEnabled = Value
-        Notify("👁️ Player ESP", (Value and "مفعل" or "معطل"), 2)
+        _G.WalkSpeedEnabled = Value
         if Value then
             task.spawn(function()
-                while _G.PlayerESPEnabled do
-                    pcall(function()
-                        for _, p in pairs(Players:GetPlayers()) do
-                            if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                                local rootPart = p.Character.HumanoidRootPart
-                                local head = p.Character:FindFirstChild("Head")
-                                if rootPart and head then
-                                    if not rootPart:FindFirstChild("PlayerESPBox") then
-                                        local box = Instance.new("BoxHandleAdornment")
-                                        box.Name = "PlayerESPBox"
-                                        box.Adornee = rootPart
-                                        box.Size = Vector3.new(2, 6, 1)
-                                        box.Color3 = Color3.fromRGB(255, 0, 0)
-                                        box.Transparency = 0.5
-                                        box.AlwaysOnTop = true
-                                        box.ZIndex = 10
-                                        box.Parent = Workspace.CurrentCamera
-                                    end
-                                    if not head:FindFirstChild("PlayerESPNameTag") then
-                                        local nameTag = Instance.new("BillboardGui")
-                                        nameTag.Name = "PlayerESPNameTag"
-                                        nameTag.Adornee = head
-                                        nameTag.Size = UDim2.new(0, 100, 0, 20)
-                                        nameTag.AlwaysOnTop = true
-                                        nameTag.ExtentsOffset = Vector3.new(0, 2, 0)
-                                        nameTag.Parent = Workspace.CurrentCamera
-                                        local textLabel = Instance.new("TextLabel", nameTag)
-                                        textLabel.Size = UDim2.new(1, 0, 1, 0)
-                                        textLabel.BackgroundTransparency = 1
-                                        textLabel.Text = p.Name
-                                        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                                        textLabel.TextSize = 14
-                                        textLabel.Font = Enum.Font.SourceSansBold
-                                    end
-                                end
-                            else
-                                -- Cleanup if player leaves or character removed
-                                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart:FindFirstChild("PlayerESPBox") then
-                                    p.Character.HumanoidRootPart.PlayerESPBox:Destroy()
-                                end
-                                if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("PlayerESPNameTag") then
-                                    p.Character.Head.PlayerESPNameTag:Destroy()
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.5)
+                while _G.WalkSpeedEnabled and Humanoid do
+                    pcall(function() Humanoid.WalkSpeed = 60 end)
+                    task.wait(0.1)
                 end
-                -- Final cleanup when ESP is disabled
-                for _, p in pairs(Players:GetPlayers()) do
-                    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart:FindFirstChild("PlayerESPBox") then
-                        p.Character.HumanoidRootPart.PlayerESPBox:Destroy()
-                    end
-                    if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("PlayerESPNameTag") then
-                        p.Character.Head.PlayerESPNameTag:Destroy()
-                    end
-                end
+                pcall(function() if Humanoid then Humanoid.WalkSpeed = 16 end end)
             end)
         else
-            -- Cleanup when ESP is disabled
-            for _, p in pairs(Players:GetPlayers()) do
-                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart:FindFirstChild("PlayerESPBox") then
-                    p.Character.HumanoidRootPart.PlayerESPBox:Destroy()
-                end
-                if p.Character and p.Character:FindFirstChild("Head") and p.Character.Head:FindFirstChild("PlayerESPNameTag") then
-                    p.Character.Head.PlayerESPNameTag:Destroy()
-                end
-            end
+            pcall(function() if Humanoid then Humanoid.WalkSpeed = 16 end end)
         end
     end
 })
 
-print("Kingdom World Pro Bypass Edition Loaded!")
+CreateToggle({
+    Name = "🦘 Infinite Jump",
+    CurrentValue = _G.JumpPowerEnabled,
+    Callback = function(Value)
+        _G.JumpPowerEnabled = Value
+    end
+})
+
+UserInputService.JumpRequest:Connect(function()
+    if _G.JumpPowerEnabled and Humanoid then
+        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+CreateSection("❌ Other")
+
+CreateToggle({
+    Name = "❌ Close Script",
+    Callback = function()
+        ScreenGui:Destroy()
+    end
+})
+
+print("Kingdom World Universal Script Loaded!")
