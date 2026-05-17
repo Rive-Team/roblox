@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════
--- Kingdom World | Lite Edition V2 (Ultimate Anti-Fine & New Features)
+-- Rive Hub | Kingdom World Ultimate Edition
 -- Optimized for Weak Devices & Universal Executor Support
 -- ══════════════════════════════════════════════
 
@@ -70,6 +70,7 @@ do
                 if p:IsA("BodyVelocity") or p:IsA("BodyGyro") or p:IsA("BodyMover") or p:IsA("BodyForce") then
                     p:Destroy()
                 end
+                -- Ensure parts are not anchored or have collision disabled by mistake
                 if p:IsA("BasePart") then p.Anchored = false p.CanCollide = true end
             end
             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -86,8 +87,8 @@ end
 local v1 = {
     ar = {
         KickMessage = 'هذا السكربت يعمل فقط في لعبة Kingdom World!',
-        WindowName = 'HM HUB|KINGDOM WORLD V2',
-        IntroText = 'HM HUB|KINGDOM WORLD V2',
+        WindowName = 'Rive Hub | Kingdom World V2',
+        IntroText = 'Rive Hub | Kingdom World V2',
         MainTab = 'الرئيسي',
         PlacesESP = 'Places ESP',
         EnablePlacesESP = 'تفعيل Places ESP',
@@ -127,8 +128,8 @@ local v1 = {
     },
     en = {
         KickMessage = 'This script only works in Kingdom World!',
-        WindowName = 'HM HUB|KINGDOM WORLD V2',
-        IntroText = 'HM HUB|KINGDOM WORLD V2',
+        WindowName = 'Rive Hub | Kingdom World V2',
+        IntroText = 'Rive Hub | Kingdom World V2',
         MainTab = 'Main',
         PlacesESP = 'Places ESP',
         EnablePlacesESP = 'Enable Places ESP',
@@ -256,10 +257,10 @@ local Window = Orion:MakeWindow({
     Name = u8.WindowName,
     HidePremium = false,
     SaveConfig = true,
-    ConfigFolder = 'HMHUB',
+    ConfigFolder = 'RiveHub',
     IntroEnabled = true,
     IntroText = u8.IntroText,
-    IntroIcon = 'http://www.roblox.com/asset/?id=82795327169782',
+    IntroIcon = 'http://www.roblox.com/asset/?id=82795327169782', -- Placeholder icon
 })
 
 -- ══════════════════════════════════════════════
@@ -304,10 +305,10 @@ local CarFlyActive = false
 local InfiniteNitroActive = false
 
 -- ══════════════════════════════════════════════
--- Functions (Optimized for performance)
+-- Functions (Optimized for performance & Car Movement Fix)
 -- ══════════════════════════════════════════════
 
--- Auto Drive Farm Logic (Optimized)
+-- Auto Drive Farm Logic (Optimized & Fixed Car Movement)
 local function StartAutoFarmDrive(speed)
     if AutoFarmDriveActive then AutoFarmSpeed = speed return true end
     local seat = GetSeat() 
@@ -329,11 +330,11 @@ local function StartAutoFarmDrive(speed)
             return 
         end
         
-        -- Direct velocity manipulation (from working script, optimized)
+        -- Ensure car physics are not interfered with, only apply throttle/steer
         cs.Throttle = 1 
-        cs.Steer = math.sin(tick()*0.5)*0.3 
+        cs.Steer = math.sin(tick()*0.5)*0.3 -- Gentle steering to simulate movement
         cs.MaxSpeed = AutoFarmSpeed 
-        cs.AssemblyLinearVelocity = cs.CFrame.LookVector * AutoFarmSpeed
+        -- Removed direct AssemblyLinearVelocity manipulation to avoid freezing issues
         
         -- Auto Collect (Optimized: less frequent checks, direct touch)
         if HRP then
@@ -384,7 +385,7 @@ local function StartAntiFine()
                 if method == "FireServer" then
                     local args = {...}
                     -- Common RemoteEvent names for fines/violations (adjust as needed based on game analysis)
-                    local fineEvents = {"SendFine", "ReportViolation", "TrafficViolation", "PoliceReport"}
+                    local fineEvents = {"SendFine", "ReportViolation", "TrafficViolation", "PoliceReport", "FinePlayer"}
                     for _, eventName in pairs(fineEvents) do
                         if typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name == eventName then
                             -- Block the RemoteEvent from firing to the server
@@ -581,7 +582,7 @@ local function StopPlayerESP()
         PlayerESPObjects = {}
     end)
     Orion:MakeNotification({Name = "توقف", Content = "تم إيقاف كشف اللاعبين", Time = 3})
-end
+}
 
 -- Anti-AFK Logic
 local AntiAFKLoop = nil
@@ -612,6 +613,7 @@ end
 local CarFlyLoop = nil
 local function StartCarFly()
     CarFlyActive = true
+    Orion:MakeNotification({Name = "طيران السيارة", Content = "تم تفعيل طيران السيارة! (Space للارتفاع, Ctrl للهبوط)", Time = 3})
     CarFlyLoop = RunService.Heartbeat:Connect(function()
         if CarFlyActive and GetSeat() and GetCarModel() then
             local car = GetCarModel()
@@ -627,7 +629,6 @@ local function StartCarFly()
             end
         end
     end)
-    Orion:MakeNotification({Name = "طيران السيارة", Content = "تم تفعيل طيران السيارة! (Space للارتفاع, Ctrl للهبوط)", Time = 3})
 end
 
 local function StopCarFly()
@@ -649,7 +650,7 @@ local function StartInfiniteNitro()
     InfiniteNitroActive = true
     Orion:MakeNotification({Name = "نيترو لا نهائي", Content = "تم تفعيل نيترو لا نهائي! (قد لا يعمل في بعض السيارات)", Time = 3})
     -- This part needs specific RemoteEvent analysis for Kingdom World's nitro system.
-    -- For now, it's a placeholder. If the game has a client-side nitro value, we can try to set it.
+    -- For now, it's a placeholder. If the game has a client-sided nitro value, we can try to set it.
     -- If it's server-sided, we'd need to find and spam the FireServer RemoteEvent for nitro.
     -- Example (highly speculative, requires game analysis):
     -- InfiniteNitroLoop = RunService.Heartbeat:Connect(function()
@@ -715,14 +716,14 @@ end
 
 local MainTab = Window:MakeTab({
     Name = u8.MainTab,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
 -- Farm Tab
 local FarmTab = Window:MakeTab({
     Name = u8.FarmTab,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -782,7 +783,7 @@ FarmTab:AddToggle({
 -- Player Tab
 local PlayerTab = Window:MakeTab({
     Name = u8.PlayerTab,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -837,7 +838,7 @@ PlayerTab:AddToggle({
 -- Teleport Tab
 local TeleportTab = Window:MakeTab({
     Name = u8.TeleportPlaces,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -855,7 +856,7 @@ end
 -- Trolling Tab
 local TrollingTab = Window:MakeTab({
     Name = u8.TerrorizeTab,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -891,7 +892,7 @@ TrollingTab:AddButton({
 -- Visuals Tab
 local VisualsTab = Window:MakeTab({
     Name = u8.PlayerESP,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -908,7 +909,7 @@ VisualsTab:AddToggle({
 -- Misc Tab
 local MiscTab = Window:MakeTab({
     Name = u8.Misc,
-    Icon = 'rbxassetid://4483345998',
+    Icon = 'rbxassetid://4483345998', -- Placeholder icon
     PremiumOnly = false,
 })
 
@@ -931,7 +932,7 @@ MiscTab:AddButton({
 })
 
 Orion:MakeNotification({
-    Name = "Kingdom World Lite Edition V2",
+    Name = "Rive Hub | Kingdom World",
     Content = "تم تحميل السكربت بنجاح!",
     Time = 5
 })
