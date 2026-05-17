@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════
--- Rive Hub | Kingdom World Low Pressure Edition
+-- Rive Hub | Kingdom World Ultimate Lite Edition
 -- Ultra-Lightweight & Optimized for Weak Devices
 -- ══════════════════════════════════════════════
 
@@ -78,7 +78,7 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 200, 0, 150)
+MainFrame.Size = UDim2.new(0, 200, 0, 250) -- Increased size for more features
 MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 0
@@ -92,7 +92,7 @@ TitleLabel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.Font = Enum.Font.SourceSansBold
 TitleLabel.TextSize = 18
-TitleLabel.Text = "Rive Hub | Low Pressure"
+TitleLabel.Text = "Rive Hub | Ultimate Lite"
 TitleLabel.Parent = MainFrame
 
 local ToggleFrame = Instance.new("Frame")
@@ -140,14 +140,15 @@ local HRP = Character:WaitForChild("HumanoidRootPart")
 local AutoFarmActive = false
 local AutoFarmConn = nil
 local AntiFineActive = false
+local LastMoneySearchTime = 0
+local MoneySearchInterval = 2 -- Search for money parts every 2 seconds
 
 local function GetSeat() return Humanoid and Humanoid.SeatPart end
 
--- Optimized Auto Drive Farm (Fixed Freeze & Low Frequency)
+-- Optimized Auto Drive Farm (Fixed Freeze & Staggered Money Search)
 local function StartAutoFarm()
     if AutoFarmConn then return end
     AutoFarmActive = true
-    -- No Fluent notification for ultra-lightweight
     AutoFarmConn = RunService.Heartbeat:Connect(function()
         if not AutoFarmActive then return end
         local seat = GetSeat()
@@ -155,8 +156,9 @@ local function StartAutoFarm()
             seat.Throttle = 1
             seat.Steer = math.sin(tick() * 0.5) * 0.2 -- Gentle steering for smooth turns
             
-            -- Auto Collect Money/Riyals (Low Frequency Check)
-            if tick() % 1 < 0.1 then -- Check every ~1 second
+            -- Auto Collect Money/Riyals (Staggered Search)
+            if tick() - LastMoneySearchTime > MoneySearchInterval then
+                LastMoneySearchTime = tick()
                 local moneyNames = {"Money","Cash","Coin","Gold","Riyal","فلوس","مال","نقود","ريال","CashPart","Reward","Collectible", "Pickup", "ValuePart"}
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj:IsA("BasePart") or obj:IsA("MeshPart") then
@@ -185,25 +187,34 @@ local function StopAutoFarm()
     if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn = nil end
     local seat = GetSeat()
     if seat and seat:IsA("VehicleSeat") then seat.Throttle = 0 seat.Steer = 0 end
-    -- No Fluent notification for ultra-lightweight
 end
 
--- Anti-Fine (Radar Bypass) - Same robust hooking
+-- Anti-Fine (Radar Bypass) - Enhanced Hooking
 local function ActivateAntiFine(state)
     AntiFineActive = state
     if AntiFineActive then
-        -- No Fluent notification for ultra-lightweight
         local mt = getrawmetatable(game)
         setreadonly(mt, false)
         local old = mt.__namecall
         mt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            if method == "FireServer" and (self.Name:find("Fine") or self.Name:find("Radar") or self.Name:find("SpeedCheck") or self.Name:find("Violation") or self.Name:find("AntiCheat") or self.Name:find("AC")) then
-                return nil
+            -- Broadened detection for fine/radar related remotes
+            if method == "FireServer" and (self.Name:find("Fine") or self.Name:find("Radar") or self.Name:find("SpeedCheck") or self.Name:find("Violation") or self.Name:find("AntiCheat") or self.Name:find("AC") or self.Name:find("Traffic") or self.Name:find("Police")) then
+                return nil -- Block the remote event
             end
             return old(self, ...)
         end)
         setreadonly(mt, true)
+        
+        -- Attempt to disable traffic lights or related scripts (more aggressive)
+        pcall(function()
+            for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+                if v:IsA("Script") and (v.Name:find("TrafficLight") or v.Name:find("RadarScript") or v.Name:find("FineSystem")) then
+                    v.Disabled = true
+                end
+            end
+        end)
+
     else
         -- Revert hook is complex, for low pressure we just let it be.
     end
@@ -212,6 +223,101 @@ end
 -- UI Elements
 CreateToggle("AutoDriveFarm", "Auto Drive Farm", function(state) if state then StartAutoFarm() else StopAutoFarm() end end)
 CreateToggle("AntiFine", "Anti-Fine (Radar Bypass)", ActivateAntiFine)
+
+-- Add more features here
+-- Car Fly
+CreateToggle("CarFly", "Car Fly (Space to go up)", function(state)
+    _G.CarFlyActive = state
+    if state then
+        RunService.Heartbeat:Connect(function()
+            if _G.CarFlyActive and GetSeat() then
+                local seat = GetSeat()
+                if seat.Parent and seat.Parent:IsA("Model") then
+                    local root = seat.Parent:FindFirstChild("Body") or seat.Parent:FindFirstChild("Chassis")
+                    if root then
+                        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.Space) then
+                            root.CFrame = root.CFrame + Vector3.new(0, 1, 0)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Infinite Nitro (needs more specific game remotes, placeholder for now)
+CreateToggle("InfiniteNitro", "Infinite Nitro (Experimental)", function(state)
+    _G.InfiniteNitroActive = state
+    if state then
+        -- This would require specific remote event calls for nitro, which are game-dependent.
+        -- Placeholder: try to spam a common nitro remote if found.
+        -- Example: game:GetService("ReplicatedStorage"):FindFirstChild("NitroRemote"):FireServer()
+    end
+end)
+
+-- Teleport (Example locations, need actual game coordinates)
+local TeleportFrame = Instance.new("Frame")
+TeleportFrame.Size = UDim2.new(1, 0, 0, 100)
+TeleportFrame.Position = UDim2.new(0, 0, 0, 0)
+TeleportFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+TeleportFrame.BorderSizePixel = 0
+TeleportFrame.Parent = ToggleFrame
+
+local TeleportLayout = Instance.new("UIListLayout")
+TeleportLayout.FillDirection = Enum.FillDirection.Vertical
+TeleportLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TeleportLayout.Padding = UDim.new(0, 5)
+TeleportLayout.Parent = TeleportFrame
+
+local function CreateTeleportButton(text, position)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0.9, 0, 0, 25)
+    Button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 16
+    Button.Text = text
+    Button.Parent = TeleportFrame
+    Button.MouseButton1Click:Connect(function()
+        HRP.CFrame = CFrame.new(position)
+    end)
+end
+
+CreateTeleportButton("Teleport to City", Vector3.new(0, 100, 0)) -- Example coordinates
+CreateTeleportButton("Teleport to Airport", Vector3.new(1000, 100, 1000)) -- Example coordinates
+
+-- Player Movement (WalkSpeed, Infinite Jump, Noclip)
+CreateToggle("WalkSpeedToggle", "Fast Walk", function(state)
+    Humanoid.WalkSpeed = state and 60 or 16
+end)
+
+CreateToggle("InfiniteJumpToggle", "Infinite Jump", function(state)
+    _G.InfJump = state
+    if state then
+        game:GetService("UserInputService").JumpRequest:Connect(function()
+            if _G.InfJump then Humanoid:ChangeState("Jumping") end
+        end)
+    end
+end)
+
+CreateToggle("NoclipToggle", "Noclip", function(state)
+    _G.NoclipActive = state
+    if state then
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") and not part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    else
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") and not part.CanCollide then
+                part.CanCollide = true
+            end
+        end
+    end
+end)
 
 -- Initial notification (simple text label)
 local InitialNotification = Instance.new("TextLabel")
