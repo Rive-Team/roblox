@@ -181,11 +181,350 @@ end
 local _PA = _digs({1,4,2,8,2,3,2,9,1})       -- MM2: 142823291
 local _PB = _digs({9,6,7,9,6,2,5,9,5,8,0,8,9,1}) -- KW: 96796259580891
 local _PC = _digs({1,1,3,7,9,7,3,9,5,4,3})       -- TimeBomb Duels: 11379739543
-local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pet Mine Sim: 82013336390273
+local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pickaxe Sim: 82013336390273
 local _pid = game.PlaceId
 
--- PlaceId check
-if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC and _pid ~= _PD then
+-- ═══════════════════════════════════════════════════════════════
+-- ⛏️ PICKAXE SIMULATOR - EARLY EXIT (NO HOOKS, NO CHECKS!)
+-- يشتغل مباشرة قبل أي فحوصات علشان ما يثير Anti-Cheat
+-- ═══════════════════════════════════════════════════════════════
+if _pid == _PD then
+    -- Embedded simple script (no anti-cheat triggers)
+    do
+        local Players = game:GetService("Players")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local RunService = game:GetService("RunService")
+        local UserInputService = game:GetService("UserInputService")
+        local player = Players.LocalPlayer
+        local playerStatsFolder = nil
+        local settingsFolder = nil
+
+        task.spawn(function()
+            local stats = ReplicatedStorage:WaitForChild("Stats", 10)
+            if not stats then return end
+            playerStatsFolder = stats:WaitForChild(player.Name, 10)
+            if not playerStatsFolder then return end
+            settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
+        end)
+
+        -- Create Bo.Sqr styled GUI
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "BoSqrPickaxe"
+        ScreenGui.ResetOnSpawn = false
+        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+        local Frame = Instance.new("Frame")
+        Frame.Size = UDim2.new(0, 280, 0, 480)
+        Frame.Position = UDim2.new(0.5, -140, 0.35, 0)
+        Frame.BackgroundColor3 = Color3.fromRGB(20, 10, 18)
+        Frame.BorderSizePixel = 0
+        Frame.Active = true
+        Frame.Draggable = true
+        Frame.Parent = ScreenGui
+
+        local UICorner = Instance.new("UICorner", Frame)
+        UICorner.CornerRadius = UDim.new(0, 12)
+
+        local UIStroke = Instance.new("UIStroke", Frame)
+        UIStroke.Thickness = 2
+        UIStroke.Color = Color3.fromRGB(255, 80, 160)
+        UIStroke.Transparency = 0.3
+
+        local Title = Instance.new("TextLabel")
+        Title.Size = UDim2.new(1, -40, 0, 35)
+        Title.Position = UDim2.fromOffset(10, 5)
+        Title.BackgroundTransparency = 1
+        Title.Text = "⛏️ Bo.Sqr | Pickaxe Sim"
+        Title.TextColor3 = Color3.fromRGB(255, 80, 160)
+        Title.Font = Enum.Font.GothamBold
+        Title.TextSize = 18
+        Title.TextXAlignment = Enum.TextXAlignment.Left
+        Title.Parent = Frame
+
+        local Close = Instance.new("TextButton")
+        Close.Size = UDim2.new(0, 30, 0, 30)
+        Close.Position = UDim2.new(1, -35, 0, 5)
+        Close.BackgroundColor3 = Color3.fromRGB(40, 20, 36)
+        Close.Text = "×"
+        Close.TextColor3 = Color3.fromRGB(255, 150, 150)
+        Close.Font = Enum.Font.GothamBold
+        Close.TextSize = 20
+        Close.BorderSizePixel = 0
+        local CloseCorner = Instance.new("UICorner", Close)
+        CloseCorner.CornerRadius = UDim.new(0, 6)
+        Close.Parent = Frame
+
+        Close.MouseButton1Click:Connect(function()
+            ScreenGui:Destroy()
+        end)
+
+        local Subtitle = Instance.new("TextLabel")
+        Subtitle.Size = UDim2.new(1, -20, 0, 20)
+        Subtitle.Position = UDim2.fromOffset(10, 40)
+        Subtitle.BackgroundTransparency = 1
+        Subtitle.Text = "Discord: Riveteam"
+        Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200)
+        Subtitle.Font = Enum.Font.Gotham
+        Subtitle.TextSize = 12
+        Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+        Subtitle.Parent = Frame
+
+        local function MakeToggle(name, yPos)
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
+            button.Font = Enum.Font.Gotham
+            button.TextSize = 15
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = name .. ": Loading..."
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
+            button.Parent = Frame
+
+            button.MouseButton1Click:Connect(function()
+                if not settingsFolder then return end
+                local setting = settingsFolder:FindFirstChild(name)
+                if setting and setting:IsA("BoolValue") then
+                    setting.Value = not setting.Value
+                    button.Text = name .. ": " .. tostring(setting.Value)
+                    button.BackgroundColor3 = setting.Value and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
+                end
+            end)
+
+            task.spawn(function()
+                repeat task.wait(0.5) until settingsFolder
+                local setting = settingsFolder:FindFirstChild(name, 3)
+                if setting then
+                    button.Text = name .. ": " .. tostring(setting.Value)
+                    button.BackgroundColor3 = setting.Value and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
+                else
+                    button.Text = name .. ": Missing"
+                end
+            end)
+        end
+
+        local function MakeSetButton(name, yPos, targetValue)
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
+            button.Font = Enum.Font.Gotham
+            button.TextSize = 15
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = name .. ": Click to Set"
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
+            button.Parent = Frame
+
+            button.MouseButton1Click:Connect(function()
+                local eggStats = ReplicatedStorage.Stats:FindFirstChild(player.Name)
+                if eggStats then
+                    eggStats = eggStats:FindFirstChild("EggStats")
+                    if eggStats then
+                        local stat = eggStats:FindFirstChild("HatchSpeed")
+                        if stat and stat:IsA("NumberValue") then
+                            stat.Value = targetValue
+                            button.Text = name .. ": " .. tostring(stat.Value)
+                            button.BackgroundColor3 = Color3.fromRGB(255, 80, 160)
+                        end
+                    end
+                end
+            end)
+        end
+
+        local function MakeDirectToggle(name, valueObj, yPos, warning)
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+            button.Font = Enum.Font.Gotham
+            button.TextSize = 15
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = "⚠️ " .. name .. ": Loading..."
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
+            button.Parent = Frame
+
+            local warned = false
+            button.MouseButton1Click:Connect(function()
+                if not warned and warning then
+                    warned = true
+                    local warnGui = Instance.new("ScreenGui", player.PlayerGui)
+                    local warnFrame = Instance.new("Frame", warnGui)
+                    warnFrame.Size = UDim2.new(0, 300, 0, 100)
+                    warnFrame.Position = UDim2.new(0.5, -150, 0.3, 0)
+                    warnFrame.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+                    local warnCorner = Instance.new("UICorner", warnFrame)
+                    warnCorner.CornerRadius = UDim.new(0, 10)
+                    local warnText = Instance.new("TextLabel", warnFrame)
+                    warnText.Size = UDim2.new(1, -20, 1, -20)
+                    warnText.Position = UDim2.fromOffset(10, 10)
+                    warnText.BackgroundTransparency = 1
+                    warnText.Text = "⚠️ HIGH BAN RISK!\nاحتمال باند عالي!\nUse at your own risk!"
+                    warnText.TextColor3 = Color3.fromRGB(255, 200, 200)
+                    warnText.Font = Enum.Font.GothamBold
+                    warnText.TextSize = 14
+                    warnText.TextWrapped = true
+                    task.delay(4, function() warnGui:Destroy() end)
+                end
+                
+                if valueObj and valueObj:IsA("BoolValue") then
+                    valueObj.Value = not valueObj.Value
+                    button.Text = "⚠️ " .. name .. ": " .. tostring(valueObj.Value)
+                    button.BackgroundColor3 = valueObj.Value and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(60, 20, 20)
+                end
+            end)
+
+            task.spawn(function()
+                task.wait(1)
+                if valueObj then
+                    button.Text = "⚠️ " .. name .. ": " .. tostring(valueObj.Value)
+                    button.BackgroundColor3 = valueObj.Value and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(60, 20, 20)
+                end
+            end)
+        end
+
+        local autoRewardEnabled = false
+        local function MakeAutoRewardToggle(yPos)
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
+            button.Font = Enum.Font.Gotham
+            button.TextSize = 15
+            button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            button.Text = "🎁 AutoRewardEgg: OFF"
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
+            button.Parent = Frame
+
+            button.MouseButton1Click:Connect(function()
+                autoRewardEnabled = not autoRewardEnabled
+                button.Text = "🎁 AutoRewardEgg: " .. (autoRewardEnabled and "ON" or "OFF")
+                button.BackgroundColor3 = autoRewardEnabled and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
+            end)
+
+            task.spawn(function()
+                while true do
+                    task.wait(0.3)
+                    if autoRewardEnabled then
+                        pcall(function()
+                            local menus = player.PlayerGui:FindFirstChild("Menus")
+                            if menus then
+                                local rewardUI = menus:FindFirstChild("Reward")
+                                if rewardUI then
+                                    local main = rewardUI.Frame.Main
+                                    local available = main.Claim.Main:FindFirstChild("Available")
+                                    if available and available.Visible == true then
+                                        main.Claim:Activate()
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
+            end)
+        end
+
+        local function MakeMiningSpeedSlider(yPos)
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -30, 0, 20)
+            label.Position = UDim2.new(0, 15, 0, yPos)
+            label.BackgroundTransparency = 1
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 14
+            label.TextColor3 = Color3.fromRGB(255, 80, 160)
+            label.Text = "⛏️ Mining Speed: 1"
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Parent = Frame
+
+            local slider = Instance.new("TextButton")
+            slider.Size = UDim2.new(1, -30, 0, 35)
+            slider.Position = UDim2.new(0, 15, 0, yPos + 22)
+            slider.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
+            slider.Font = Enum.Font.Gotham
+            slider.Text = "Drag to Set"
+            slider.TextColor3 = Color3.fromRGB(200, 200, 220)
+            slider.TextSize = 13
+            slider.BorderSizePixel = 0
+            local sliderCorner = Instance.new("UICorner", slider)
+            sliderCorner.CornerRadius = UDim.new(0, 8)
+            slider.Parent = Frame
+
+            local dragging = false
+            slider.MouseButton1Down:Connect(function() dragging = true end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end)
+
+            RunService.RenderStepped:Connect(function()
+                if dragging then
+                    local mouse = player:GetMouse()
+                    local relativeX = mouse.X - slider.AbsolutePosition.X
+                    local percent = math.clamp(relativeX / slider.AbsoluteSize.X, 0, 1)
+                    local value = math.floor(percent * 9) + 1
+                    label.Text = "⛏️ Mining Speed: " .. value
+
+                    local boost = ReplicatedStorage.Stats:FindFirstChild(player.Name)
+                    if boost then
+                        boost = boost:FindFirstChild("MiningSpeedBoost")
+                        if boost and boost:IsA("NumberValue") then
+                            boost.Value = value
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- Build UI
+        MakeToggle("AutoRebirth", 70)
+        MakeToggle("AutoTrain", 125)
+        MakeSetButton("🥚 Egg Hatch Speed", 180, 7)
+        MakeDirectToggle("Premium", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsPremium"), 235, true)
+        MakeDirectToggle("In Group", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsInGroup"), 290, true)
+        MakeAutoRewardToggle(345)
+        MakeMiningSpeedSlider(400)
+
+        -- Welcome notification
+        task.spawn(function()
+            local notifGui = Instance.new("ScreenGui", player.PlayerGui)
+            local notifFrame = Instance.new("Frame", notifGui)
+            notifFrame.Size = UDim2.new(0, 320, 0, 80)
+            notifFrame.Position = UDim2.new(0.5, -160, 0.85, 0)
+            notifFrame.BackgroundColor3 = Color3.fromRGB(20, 10, 18)
+            notifFrame.BorderSizePixel = 0
+            local notifCorner = Instance.new("UICorner", notifFrame)
+            notifCorner.CornerRadius = UDim.new(0, 10)
+            local notifStroke = Instance.new("UIStroke", notifFrame)
+            notifStroke.Color = Color3.fromRGB(255, 80, 160)
+            notifStroke.Thickness = 2
+            
+            local notifText = Instance.new("TextLabel", notifFrame)
+            notifText.Size = UDim2.new(1, -20, 1, -20)
+            notifText.Position = UDim2.fromOffset(10, 10)
+            notifText.BackgroundTransparency = 1
+            notifText.Text = "⛏️ Bo.Sqr Loaded!\nPickaxe Simulator\n⚠️ Avoid Premium/Group!"
+            notifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            notifText.Font = Enum.Font.GothamBold
+            notifText.TextSize = 14
+            notifText.TextWrapped = true
+            
+            task.delay(6, function() notifGui:Destroy() end)
+        end)
+    end
+    return -- Exit immediately - don't continue to rest of script
+end
+
+-- PlaceId check for other games
+if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC then
     return
 end
 
@@ -193,7 +532,6 @@ end
 local _A = _PA
 local _B = _PB
 local _C = _PC
-local _D = _PD
 
 -- ── Mobile movement cleanup (يحل مشكلة عدم التحرك على Android) ──
 -- ينظف أي BodyVelocity/BodyGyro/Anchored من سكربت سابق
@@ -4794,504 +5132,6 @@ elseif currentMapID == _C then
         (Lang=="AR" and "تم التحميل!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"
          or "Loaded!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"), 8)
     -- silent load
-
--- ══════════════════════════════════════════════════════════════════
--- 🪨 PICKAXE SIMULATOR
--- ══════════════════════════════════════════════════════════════════
-elseif currentMapID == _D then
-
-    -- ═══════════════════════════════════════════════════════════════
-    -- 🛡️ PICKAXE SIMULATOR ANTI-CHEAT BYPASS LAYER
-    -- ═══════════════════════════════════════════════════════════════
-    do
-        -- Helper: Gradual Value Change (تغيير تدريجي لتجنب الكشف)
-        local function gradualChange(obj, targetValue)
-            if not obj or not obj:IsA("NumberValue") then return end
-            pcall(function()
-                local current = obj.Value
-                if math.abs(targetValue - current) < 0.1 then
-                    obj.Value = targetValue
-                    return
-                end
-                
-                -- Change in 10 steps over 0.5 seconds
-                task.spawn(function()
-                    local step = (targetValue - current) / 10
-                    for i = 1, 10 do
-                        if obj and obj.Parent then
-                            obj.Value = current + (step * i)
-                            task.wait(0.05)
-                        end
-                    end
-                    if obj and obj.Parent then
-                        obj.Value = targetValue
-                    end
-                end)
-            end)
-        end
-
-        -- 1️⃣ Block Remote Detection Functions
-        pcall(function()
-            if hookfunction and getgc and islclosure and getinfo then
-                for _, v in pairs(getgc()) do
-                    if type(v) == "function" and islclosure(v) then
-                        local success, info = pcall(getinfo, v)
-                        if success and info and info.name then
-                            local name = info.name:lower()
-                            if name:find("anticheat") or name:find("detect") 
-                               or name:find("check") or name:find("validate")
-                               or name:find("ban") or name:find("kick") then
-                                pcall(function()
-                                    hookfunction(v, function() 
-                                        return true 
-                                    end)
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-
-        -- 2️⃣ Hook __newindex to make value changes gradual
-        pcall(function()
-            if hookmetamethod and getrawmetatable and newcclosure and setreadonly then
-                local mt = getrawmetatable(game)
-                local oldNewIndex = mt.__newindex
-                
-                setreadonly(mt, false)
-                
-                mt.__newindex = newcclosure(function(self, key, value)
-                    if key == "Value" and self:IsA("NumberValue") then
-                        local parent = self.Parent
-                        if parent and (parent.Name == "Settings" 
-                                    or parent.Name == "EggStats"
-                                    or parent.Name == "Analytics") then
-                            -- Use gradual change for important values
-                            local current = self.Value
-                            if type(value) == "number" and math.abs(value - current) > 50 then
-                                gradualChange(self, value)
-                                return
-                            end
-                        end
-                    end
-                    return oldNewIndex(self, key, value)
-                end)
-                
-                setreadonly(mt, true)
-            end
-        end)
-
-        -- 3️⃣ Disable Anti-Tamper Scripts
-        task.spawn(function()
-            task.wait(2)
-            pcall(function()
-                for _, script in pairs(game:GetDescendants()) do
-                    if (script:IsA("LocalScript") or script:IsA("ModuleScript")) and script.Enabled then
-                        local name = script.Name:lower()
-                        if name:find("anti") or name:find("detect") 
-                           or name:find("check") or name:find("secure")
-                           or name:find("cheat") then
-                            script.Disabled = true
-                            task.wait(0.1)
-                            pcall(function() script:Destroy() end)
-                        end
-                    end
-                end
-            end)
-        end)
-
-        -- 4️⃣ Filter Dangerous RemoteEvents
-        pcall(function()
-            local blockedRemotes = {"ban", "kick", "flag", "report", "detect", "anticheat"}
-            for _, remote in pairs(game:GetDescendants()) do
-                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                    local remoteName = remote.Name:lower()
-                    for _, blocked in pairs(blockedRemotes) do
-                        if remoteName:find(blocked) then
-                            if hookfunction and remote:IsA("RemoteEvent") then
-                                pcall(function()
-                                    hookfunction(remote.FireServer, function() 
-                                        return 
-                                    end)
-                                end)
-                            else
-                                pcall(function() remote:Destroy() end)
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-        end)
-
-        -- 5️⃣ Set Bypass Flag
-        _G._PickaxeBypass = true
-        
-        task.wait(0.5)
-    end
-
-    local Player = LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local Humanoid = Character:WaitForChild("Humanoid")
-    local HRP = Character:WaitForChild("HumanoidRootPart")
-
-    Player.CharacterAdded:Connect(function(c)
-        Character = c
-        Humanoid = c:WaitForChild("Humanoid")
-        HRP = c:WaitForChild("HumanoidRootPart")
-    end)
-
-    -- ═══ VARIABLES ═══
-    local playerStatsFolder = nil
-    local settingsFolder = nil
-    local PMS_AutoRewardActive = false
-
-    -- ═══ INIT STATS FOLDER (with retry) ═══
-    task.spawn(function()
-        local tries = 0
-        repeat
-            tries = tries + 1
-            task.wait(1)
-            local stats = game:GetService("ReplicatedStorage"):FindFirstChild("Stats")
-            if stats then
-                playerStatsFolder = stats:FindFirstChild(Player.Name)
-                if playerStatsFolder then
-                    settingsFolder = playerStatsFolder:FindFirstChild("Settings")
-                    if settingsFolder then break end
-                end
-            end
-        until tries > 15
-        
-        if not settingsFolder then
-            Notify("⚠️", 
-                (Lang=="AR" and "لم يتم العثور على مجلد الإعدادات!" or "Settings folder not found!"), 5)
-        end
-    end)
-
-    -- ═══ TABS ═══
-    local Tabs = {
-        Home   = Window:AddTab({ Title = L("home"),   Icon = "home" }),
-        Mining = Window:AddTab({ Title = Lang=="AR" and "⛏️ التعدين" or "⛏️ Mining", Icon = "tool" }),
-        Boost  = Window:AddTab({ Title = Lang=="AR" and "⚡ التسريع" or "⚡ Boosts", Icon = "zap" }),
-        Misc   = Window:AddTab({ Title = L("misc"),   Icon = "wrench" }),
-        Config = Window:AddTab({ Title = L("config"), Icon = "sliders-horizontal" }),
-    }
-
-    -- ── HOME ────────────────────────────────────────
-    Tabs.Home:AddSection("⛏️ Bo.Sqr | Pickaxe Simulator")
-    Tabs.Home:AddParagraph({
-        Title = "👑 " .. L("dev"),
-        Content = "💬 " .. L("dev_content")
-    })
-    Tabs.Home:AddParagraph({
-        Title = "👤 " .. L("profile"),
-        Content = "👤 Name: @" .. Player.Name
-                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
-                  .. "\n🆔 ID: " .. tostring(Player.UserId)
-                  .. "\n🎮 Executor: " .. _identifyexecutor()
-                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
-                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
-    })
-    Tabs.Home:AddButton({
-        Title = "💬 " .. L("copy_discord"),
-        Description = "discord.gg/Riveteam",
-        Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅", L("copy_done")) end
-    })
-
-    -- ── MINING TAB ────────────────────────────────────────
-    Tabs.Mining:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
-    
-    -- AutoRebirth
-    Tabs.Mining:AddToggle("PMS_AutoRebirth", {
-        Title = "🔄 " .. (Lang=="AR" and "Auto Rebirth" or "Auto Rebirth"),
-        Description = Lang=="AR" and "إعادة ميلاد تلقائية" or "Automatic rebirth",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoRebirth")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoRebirth.Value
-                Notify("🔄", (Lang=="AR" and "Auto Rebirth: " or "Auto Rebirth: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    -- AutoTrain
-    Tabs.Mining:AddToggle("PMS_AutoTrain", {
-        Title = "💪 " .. (Lang=="AR" and "Auto Train" or "Auto Train"),
-        Description = Lang=="AR" and "تدريب تلقائي" or "Automatic training",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoTrain")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoTrain.Value
-                Notify("💪", (Lang=="AR" and "Auto Train: " or "Auto Train: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    -- AutoRewardEgg
-    Tabs.Mining:AddToggle("PMS_AutoReward", {
-        Title = "🎁 " .. (Lang=="AR" and "Auto Reward Egg" or "Auto Reward Egg"),
-        Description = Lang=="AR" and "جمع مكافآت البيض تلقائياً" or "Auto collect egg rewards",
-        Default = false
-    }):OnChanged(function()
-        PMS_AutoRewardActive = Options.PMS_AutoReward.Value
-        if PMS_AutoRewardActive then
-            Notify("🎁", Lang=="AR" and "Auto Reward مفعل" or "Auto Reward ON")
-            task.spawn(function()
-                while PMS_AutoRewardActive do
-                    task.wait(0.3)
-                    pcall(function()
-                        local menus = Player.PlayerGui:FindFirstChild("Menus")
-                        if menus then
-                            local rewardUI = menus:FindFirstChild("Reward")
-                            if rewardUI then
-                                local main = rewardUI.Frame.Main
-                                local available = main.Claim.Main:FindFirstChild("Available")
-                                if available and available.Visible == true then
-                                    main.Claim:Activate()
-                                end
-                            end
-                        end
-                    end)
-                end
-            end)
-        else
-            Notify("🎁", Lang=="AR" and "Auto Reward أوقف" or "Auto Reward OFF")
-        end
-    end)
-
-    -- ── BOOST ───────────────────────────────────────
-    Tabs.Boost:AddSection("⚡ " .. (Lang=="AR" and "التسريع" or "Speed Boosts"))
-
-    -- Egg Hatch Speed
-    Tabs.Boost:AddButton({
-        Title = "🥚 " .. (Lang=="AR" and "سرعة فقس البيض (7)" or "Egg Hatch Speed (7)"),
-        Description = Lang=="AR" and "يسرع فقس البيض" or "Speeds up egg hatching",
-        Callback = function()
-            task.spawn(function()
-                repeat task.wait(0.5) until playerStatsFolder
-                local eggStats = playerStatsFolder:FindFirstChild("EggStats")
-                if eggStats then
-                    local stat = eggStats:FindFirstChild("HatchSpeed")
-                    if stat and stat:IsA("NumberValue") then
-                        stat.Value = 7
-                        Notify("🥚", (Lang=="AR" and "سرعة الفقس: " or "Hatch Speed: ") .. stat.Value)
-                    end
-                end
-            end)
-        end
-    })
-
-    -- MiningSpeedBoost Slider
-    Tabs.Boost:AddSlider("PMS_MiningSpeed", {
-        Title = "⛏️ " .. (Lang=="AR" and "سرعة التعدين" or "Mining Speed Boost"),
-        Description = Lang=="AR" and "1 - 10" or "1 - 10",
-        Min = 1, Max = 10, Default = 1, Rounding = 0,
-        Callback = function(v)
-            task.spawn(function()
-                repeat task.wait(0.5) until playerStatsFolder
-                local boost = playerStatsFolder:FindFirstChild("MiningSpeedBoost")
-                if boost and boost:IsA("NumberValue") then
-                    boost.Value = v
-                    Notify("⛏️", (Lang=="AR" and "سرعة التعدين: " or "Mining Speed: ") .. v)
-                end
-            end)
-        end
-    })
-
-    Tabs.Boost:AddSection("⚠️ " .. (Lang=="AR" and "ميزات خطرة (احتمال باند!)" or "RISKY Features (Ban Risk!)"))
-
-    -- Premium (with warning)
-    local PMS_PremiumWarned = false
-    Tabs.Boost:AddToggle("PMS_Premium", {
-        Title = "💎 Premium",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_Premium.Value and not PMS_PremiumWarned then
-            PMS_PremiumWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "Premium = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "Premium = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local premium = analytics:FindFirstChild("IsPremium")
-                if premium and premium:IsA("BoolValue") then
-                    premium.Value = Options.PMS_Premium.Value
-                    Notify("💎", "Premium: " .. (premium.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- In Group (with warning)
-    local PMS_GroupWarned = false
-    Tabs.Boost:AddToggle("PMS_InGroup", {
-        Title = "👥 In Group",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_InGroup.Value and not PMS_GroupWarned then
-            PMS_GroupWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "In Group = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "In Group = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local inGroup = analytics:FindFirstChild("IsInGroup")
-                if inGroup and inGroup:IsA("BoolValue") then
-                    inGroup.Value = Options.PMS_InGroup.Value
-                    Notify("👥", "In Group: " .. (inGroup.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- ── MISC ────────────────────────────────────────
-    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
-    Tabs.Misc:AddToggle("PMS_AntiAFK", {
-        Title = "😴 Anti AFK",
-        Default = true
-    }):OnChanged(function()
-        _G.PMS_AntiAFK = Options.PMS_AntiAFK.Value
-    end)
-    LocalPlayer.Idled:Connect(function()
-        if _G.PMS_AntiAFK then
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end
-    end)
-
-    Tabs.Misc:AddSlider("PMS_WalkSpeed", {
-        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
-        Min = 16, Max = 200, Default = 16, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.WalkSpeed = v end
-        end
-    })
-
-    Tabs.Misc:AddSlider("PMS_JumpPower", {
-        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
-        Min = 50, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.JumpPower = v end
-        end
-    })
-
-    -- ── CONFIG ──────────────────────────────────────
-    Tabs.Config:AddSection("🎨 " .. L("config_theme"))
-    local _themeMapPMS = {
-        Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
-        Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
-        Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
-        Green={Accent=Color3.fromRGB(0,200,80),Dark=Color3.fromRGB(10,20,12)},
-        Orange={Accent=Color3.fromRGB(255,140,0),Dark=Color3.fromRGB(22,14,8)},
-        Red={Accent=Color3.fromRGB(255,50,50),Dark=Color3.fromRGB(22,8,8)},
-        Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
-        Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
-    }
-    local function applyThemePMS(v)
-        local t = _themeMapPMS[v]
-        if not t then return end
-        _G.BoSqr_Theme = v
-        task.spawn(function()
-            pcall(function()
-                local function recolor(obj)
-                    if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
-                        local c = obj.BackgroundColor3
-                        local r,g,b = c.R*255, c.G*255, c.B*255
-                        if r < 55 and g < 55 and b < 65 and obj.BackgroundTransparency < 0.9 then
-                            obj.BackgroundColor3 = t.Dark
-                        end
-                    end
-                    if obj:IsA("UIStroke") then obj.Color = t.Accent end
-                    for _, ch in pairs(obj:GetChildren()) do recolor(ch) end
-                end
-                local cg = game:GetService("CoreGui")
-                for _, ch in pairs(cg:GetChildren()) do pcall(recolor, ch) end
-                local pg = Player:FindFirstChild("PlayerGui")
-                if pg then for _, ch in pairs(pg:GetChildren()) do pcall(recolor, ch) end end
-            end)
-            Notify("🎨", v .. " ✅")
-        end)
-    end
-    if _G.BoSqr_Theme then task.delay(1, function() pcall(applyThemePMS, _G.BoSqr_Theme) end) end
-    local PMS_ThemeDrop = Tabs.Config:AddDropdown("PMS_ThemeDrop", {
-        Title = L("config_theme"),
-        Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
-        Multi = false, Default = _G.BoSqr_Theme or "Rose"
-    })
-    PMS_ThemeDrop:OnChanged(applyThemePMS)
-
-    Tabs.Config:AddSection("🌐 " .. L("config_lang"))
-    local _ldDefaultPMS = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
-    local PMS_LangDrop = Tabs.Config:AddDropdown("PMS_LangDrop", {
-        Title = L("config_lang"),
-        Values = {"EN - English", "AR - العربية"},
-        Multi = false, Default = _ldDefaultPMS
-    })
-    PMS_LangDrop:OnChanged(function(v)
-        if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
-        else Lang = "EN" _G.BoSqr_Lang = "EN" end
-        Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
-    end)
-
-    Tabs.Config:AddSection("⚙️")
-    local _closePMS_confirm = false
-    Tabs.Config:AddButton({
-        Title = "❌ " .. L("close_script"),
-        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
-        Callback = function()
-            if not _closePMS_confirm then
-                _closePMS_confirm = true
-                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
-                task.delay(5, function() _closePMS_confirm = false end)
-                return
-            end
-            PMS_AutoRewardActive = false
-            -- احذف TapBar
-            pcall(function()
-                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
-            end)
-            pcall(function()
-                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
-                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                end
-                local pg = LocalPlayer:FindFirstChild("PlayerGui")
-                if pg then
-                    for _, g in pairs(pg:GetChildren()) do
-                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                    end
-                end
-            end)
-            _getgenv().bosqr_loaded = nil
-            pcall(function() Window:Destroy() end)
-        end
-    })
-
-    task.wait(1)
-    Notify("⛏️ Bo.Sqr | Pickaxe",
-        (Lang=="AR" and "تم التحميل!\n⛏️ Mining | Auto Farm\n⚠️ احذر من Premium/Group!\nDiscord: Riveteam"
-         or "Loaded!\n⛏️ Mining | Auto Farm\n⚠️ Beware of Premium/Group!\nDiscord: Riveteam"), 10)
-    Window:SelectTab(1)
 
 else
     -- ماط غير معروف
