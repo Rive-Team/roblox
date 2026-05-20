@@ -181,10 +181,10 @@ end
 local _PA = _digs({1,4,2,8,2,3,2,9,1})       -- MM2: 142823291
 local _PB = _digs({9,6,7,9,6,2,5,9,5,8,0,8,9,1}) -- KW: 96796259580891
 local _PC = _digs({1,1,3,7,9,7,3,9,5,4,3})       -- TimeBomb Duels: 11379739543
-local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pickaxe Sim: 82013336390273
+local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pet Mine Sim: 82013336390273
 local _pid = game.PlaceId
 
--- PlaceId check for other games
+-- PlaceId check
 if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC and _pid ~= _PD then
     return
 end
@@ -194,359 +194,6 @@ local _A = _PA
 local _B = _PB
 local _C = _PC
 local _D = _PD
-
-    local Player = LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local Humanoid = Character:WaitForChild("Humanoid")
-    local HRP = Character:WaitForChild("HumanoidRootPart")
-
-    Player.CharacterAdded:Connect(function(c)
-        Character = c
-        Humanoid = c:WaitForChild("Humanoid")
-        HRP = c:WaitForChild("HumanoidRootPart")
-    end)
-
-    -- ═══ VARIABLES ═══
-    local playerStatsFolder = nil
-    local settingsFolder = nil
-    local PMS_AutoRewardActive = false
-
-    -- ═══ INIT STATS FOLDER ═══
-    task.spawn(function()
-        local stats = game:GetService("ReplicatedStorage"):WaitForChild("Stats", 10)
-        if stats then
-            playerStatsFolder = stats:WaitForChild(Player.Name, 10)
-            if playerStatsFolder then
-                settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
-            end
-        end
-    end)
-
-    -- ═══ TABS (SAME AS MM2/KW) ═══
-    local Tabs = {
-        Home   = Window:AddTab({ Title = L("home"),   Icon = "home" }),
-        Mining = Window:AddTab({ Title = Lang=="AR" and "⛏️ التعدين" or "⛏️ Mining", Icon = "pickaxe" }),
-        Player = Window:AddTab({ Title = L("player"), Icon = "user" }),
-        Misc   = Window:AddTab({ Title = L("misc"),   Icon = "wrench" }),
-        Config = Window:AddTab({ Title = L("config"), Icon = "sliders-horizontal" }),
-    }
-
-    -- ── HOME ────────────────────────────────────────
-    Tabs.Home:AddSection("⛏️ Bo.Sqr | Pickaxe Simulator")
-    Tabs.Home:AddParagraph({
-        Title = "👑 " .. L("dev"),
-        Content = "💬 " .. L("dev_content")
-    })
-    Tabs.Home:AddParagraph({
-        Title = "👤 " .. L("profile"),
-        Content = "👤 Name: @" .. Player.Name
-                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
-                  .. "\n🆔 ID: " .. tostring(Player.UserId)
-                  .. "\n🎮 Executor: " .. _identifyexecutor()
-                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
-                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
-    })
-    Tabs.Home:AddButton({
-        Title = "💬 " .. L("copy_discord"),
-        Description = "discord.gg/Riveteam",
-        Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅", L("copy_done")) end
-    })
-
-    -- ── MINING TAB ────────────────────────────────────────
-    Tabs.Mining:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
-    
-    -- AutoRebirth
-    Tabs.Mining:AddToggle("PMS_AutoRebirth", {
-        Title = "🔄 " .. (Lang=="AR" and "Auto Rebirth" or "Auto Rebirth"),
-        Description = Lang=="AR" and "إعادة ميلاد تلقائية" or "Automatic rebirth",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoRebirth")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoRebirth.Value
-                Notify("🔄", (Lang=="AR" and "Auto Rebirth: " or "Auto Rebirth: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    -- AutoTrain
-    Tabs.Mining:AddToggle("PMS_AutoTrain", {
-        Title = "💪 " .. (Lang=="AR" and "Auto Train" or "Auto Train"),
-        Description = Lang=="AR" and "تدريب تلقائي" or "Automatic training",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoTrain")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoTrain.Value
-                Notify("💪", (Lang=="AR" and "Auto Train: " or "Auto Train: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    Tabs.Mining:AddSection("🥚 " .. (Lang=="AR" and "البيض" or "Eggs"))
-
-    -- Egg Hatch Speed
-    Tabs.Mining:AddButton({
-        Title = "🥚 " .. (Lang=="AR" and "سرعة فقس البيض (7)" or "Egg Hatch Speed (7)"),
-        Description = Lang=="AR" and "يسرع فقس البيض" or "Speeds up egg hatching",
-        Callback = function()
-            task.spawn(function()
-                repeat task.wait(0.5) until playerStatsFolder
-                local eggStats = playerStatsFolder:FindFirstChild("EggStats")
-                if eggStats then
-                    local stat = eggStats:FindFirstChild("HatchSpeed")
-                    if stat and stat:IsA("NumberValue") then
-                        stat.Value = 7
-                        Notify("🥚", (Lang=="AR" and "سرعة الفقس: " or "Hatch Speed: ") .. stat.Value)
-                    end
-                end
-            end)
-        end
-    })
-
-    -- AutoRewardEgg
-    Tabs.Mining:AddToggle("PMS_AutoReward", {
-        Title = "🎁 " .. (Lang=="AR" and "Auto Reward Egg" or "Auto Reward Egg"),
-        Description = Lang=="AR" and "جمع مكافآت البيض تلقائياً" or "Auto collect egg rewards",
-        Default = false
-    }):OnChanged(function()
-        PMS_AutoRewardActive = Options.PMS_AutoReward.Value
-        if PMS_AutoRewardActive then
-            Notify("🎁", Lang=="AR" and "Auto Reward مفعل" or "Auto Reward ON")
-            task.spawn(function()
-                while PMS_AutoRewardActive do
-                    task.wait(0.3)
-                    pcall(function()
-                        local menus = Player.PlayerGui:FindFirstChild("Menus")
-                        if menus then
-                            local rewardUI = menus:FindFirstChild("Reward")
-                            if rewardUI then
-                                local main = rewardUI.Frame.Main
-                                local available = main.Claim.Main:FindFirstChild("Available")
-                                if available and available.Visible == true then
-                                    main.Claim:Activate()
-                                end
-                            end
-                        end
-                    end)
-                end
-            end)
-        else
-            Notify("🎁", Lang=="AR" and "Auto Reward أوقف" or "Auto Reward OFF")
-        end
-    end)
-
-    Tabs.Mining:AddSection("⚠️ " .. (Lang=="AR" and "ميزات خطرة (احتمال باند!)" or "RISKY Features (Ban Risk!)"))
-
-    -- Premium (with warning)
-    local PMS_PremiumWarned = false
-    Tabs.Mining:AddToggle("PMS_Premium", {
-        Title = "💎 Premium",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_Premium.Value and not PMS_PremiumWarned then
-            PMS_PremiumWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "Premium = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "Premium = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local premium = analytics:FindFirstChild("IsPremium")
-                if premium and premium:IsA("BoolValue") then
-                    premium.Value = Options.PMS_Premium.Value
-                    Notify("💎", "Premium: " .. (premium.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- In Group (with warning)
-    local PMS_GroupWarned = false
-    Tabs.Mining:AddToggle("PMS_InGroup", {
-        Title = "👥 In Group",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_InGroup.Value and not PMS_GroupWarned then
-            PMS_GroupWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "In Group = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "In Group = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local inGroup = analytics:FindFirstChild("IsInGroup")
-                if inGroup and inGroup:IsA("BoolValue") then
-                    inGroup.Value = Options.PMS_InGroup.Value
-                    Notify("👥", "In Group: " .. (inGroup.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- ── PLAYER TAB ────────────────────────────────────────
-    Tabs.Player:AddSection("🏃 " .. (Lang=="AR" and "الحركة" or "Movement"))
-    
-    Tabs.Player:AddSlider("PMS_WalkSpeed", {
-        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
-        Description = Lang=="AR" and "16 = عادي" or "16 = normal",
-        Min = 16, Max = 200, Default = 16, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.WalkSpeed = v end
-        end
-    })
-
-    Tabs.Player:AddSlider("PMS_JumpPower", {
-        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
-        Description = Lang=="AR" and "50 = عادي" or "50 = normal",
-        Min = 50, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.JumpPower = v end
-        end
-    })
-
-    -- ── MISC ────────────────────────────────────────
-    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
-    
-    Tabs.Misc:AddToggle("PMS_AntiAFK", {
-        Title = "😴 Anti AFK",
-        Description = Lang=="AR" and "يمنع الطرد من اللعبة" or "Prevents AFK kick",
-        Default = true
-    }):OnChanged(function()
-        _G.PMS_AntiAFK = Options.PMS_AntiAFK.Value
-    end)
-    
-    LocalPlayer.Idled:Connect(function()
-        if _G.PMS_AntiAFK then
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end
-    end)
-
-    -- ── CONFIG ──────────────────────────────────────
-    Tabs.Config:AddSection("🎨 " .. L("config_theme"))
-    local _themeMapPMS = {
-        Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
-        Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
-        Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
-        Green={Accent=Color3.fromRGB(0,200,80),Dark=Color3.fromRGB(10,20,12)},
-        Orange={Accent=Color3.fromRGB(255,140,0),Dark=Color3.fromRGB(22,14,8)},
-        Red={Accent=Color3.fromRGB(255,50,50),Dark=Color3.fromRGB(22,8,8)},
-        Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
-        Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
-    }
-    local function applyThemePMS(v)
-        local t = _themeMapPMS[v]
-        if not t then return end
-        _G.BoSqr_Theme = v
-        task.spawn(function()
-            pcall(function()
-                local function recolor(obj)
-                    if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
-                        local c = obj.BackgroundColor3
-                        local r,g,b = c.R*255, c.G*255, c.B*255
-                        if r < 55 and g < 55 and b < 65 and obj.BackgroundTransparency < 0.9 then
-                            obj.BackgroundColor3 = t.Dark
-                        end
-                    end
-                    if obj:IsA("UIStroke") then obj.Color = t.Accent end
-                    for _, ch in pairs(obj:GetChildren()) do recolor(ch) end
-                end
-                local cg = game:GetService("CoreGui")
-                for _, ch in pairs(cg:GetChildren()) do pcall(recolor, ch) end
-                local pg = Player:FindFirstChild("PlayerGui")
-                if pg then for _, ch in pairs(pg:GetChildren()) do pcall(recolor, ch) end end
-            end)
-            Notify("🎨", v .. " ✅")
-        end)
-    end
-    if _G.BoSqr_Theme then task.delay(1, function() pcall(applyThemePMS, _G.BoSqr_Theme) end) end
-    local PMS_ThemeDrop = Tabs.Config:AddDropdown("PMS_ThemeDrop", {
-        Title = L("config_theme"),
-        Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
-        Multi = false, Default = _G.BoSqr_Theme or "Rose"
-    })
-    PMS_ThemeDrop:OnChanged(applyThemePMS)
-
-    Tabs.Config:AddSection("🌐 " .. L("config_lang"))
-    local _ldDefaultPMS = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
-    local PMS_LangDrop = Tabs.Config:AddDropdown("PMS_LangDrop", {
-        Title = L("config_lang"),
-        Values = {"EN - English", "AR - العربية"},
-        Multi = false, Default = _ldDefaultPMS
-    })
-    PMS_LangDrop:OnChanged(function(v)
-        if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
-        else Lang = "EN" _G.BoSqr_Lang = "EN" end
-        Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
-    end)
-
-    Tabs.Config:AddSection("⚙️")
-    local _closePMS_confirm = false
-    Tabs.Config:AddButton({
-        Title = "❌ " .. L("close_script"),
-        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
-        Callback = function()
-            if not _closePMS_confirm then
-                _closePMS_confirm = true
-                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
-                task.delay(5, function() _closePMS_confirm = false end)
-                return
-            end
-            PMS_AutoRewardActive = false
-            -- احذف TapBar
-            pcall(function()
-                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
-            end)
-            pcall(function()
-                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
-                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                end
-                local pg = LocalPlayer:FindFirstChild("PlayerGui")
-                if pg then
-                    for _, g in pairs(pg:GetChildren()) do
-                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                    end
-                end
-            end)
-            _getgenv().bosqr_loaded = nil
-            pcall(function() Window:Destroy() end)
-        end
-    })
-
-    task.wait(1)
-    Notify("⛏️ Bo.Sqr | Pickaxe",
-        (Lang=="AR" and "تم التحميل!\n⛏️ Mining | Auto Farm\n⚠️ احذر من Premium/Group!\nDiscord: Riveteam"
-         or "Loaded!\n⛏️ Mining | Auto Farm\n⚠️ Beware of Premium/Group!\nDiscord: Riveteam"), 10)
-    Window:SelectTab(1)
-
-
-
--- PlaceId check for other games
-if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC then
-    return
-end
-
--- Aliases for game logic
-local _A = _PA
-local _B = _PB
-local _C = _PC
 
 -- ── Mobile movement cleanup (يحل مشكلة عدم التحرك على Android) ──
 -- ينظف أي BodyVelocity/BodyGyro/Anchored من سكربت سابق
@@ -1122,8 +769,16 @@ end)
 if currentMapID == _A then
 
     local UIS        = UserInputService
-    local LocalChar  = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local LocalChar  = LocalPlayer.Character
+    if not LocalChar then
+        LocalChar = LocalPlayer.CharacterAdded:Wait()
+    end
     local pg         = LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Update LocalChar on respawn
+    LocalPlayer.CharacterAdded:Connect(function(char)
+        LocalChar = char
+    end)
 
     -- ===== SETTINGS =====
     local ESP_ENABLED          = false
@@ -3254,14 +2909,17 @@ if currentMapID == _A then
 elseif currentMapID == _B then
 
     local Player    = LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local Humanoid  = Character:WaitForChild("Humanoid")
-    local HRP       = Character:WaitForChild("HumanoidRootPart")
+    local Character = Player.Character
+    if not Character then
+        Character = Player.CharacterAdded:Wait()
+    end
+    local Humanoid  = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 10)
+    local HRP       = Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart", 10)
 
     Player.CharacterAdded:Connect(function(char)
         Character = char
-        Humanoid  = char:WaitForChild("Humanoid")
-        HRP       = char:WaitForChild("HumanoidRootPart")
+        Humanoid  = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
+        HRP       = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 10)
     end)
 
     -- ===== VARIABLES =====
@@ -4270,927 +3928,480 @@ elseif currentMapID == _B then
 -- ══════════════════════════════════════════════════════════════════
 elseif currentMapID == _C then
 
-    local Player    = LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local Humanoid  = Character:WaitForChild("Humanoid")
-    local HRP       = Character:WaitForChild("HumanoidRootPart")
+    local Player = LocalPlayer
+    local Character = Player.Character
+    if not Character then
+        Character = Player.CharacterAdded:Wait()
+    end
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 10)
+    local HRP = Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart", 10)
 
     Player.CharacterAdded:Connect(function(c)
         Character = c
-        Humanoid = c:WaitForChild("Humanoid")
-        HRP = c:WaitForChild("HumanoidRootPart")
+        Humanoid = c:FindFirstChildOfClass("Humanoid") or c:WaitForChild("Humanoid", 10)
+        HRP = c:FindFirstChild("HumanoidRootPart") or c:WaitForChild("HumanoidRootPart", 10)
     end)
 
-    -- ── State ───────────────────────────────────────
-    local TBT_TargetName = ""
-    local TBT_ESPActive = false
-    local TBT_AutoTransferActive = false
-    local TBT_AntiBombActive = false
-    local TBT_FollowActive = false
-    local TBT_AutoBombActive = false
+    -- ═══════════════════════════════════════════════
+    -- TIMEBOMB CLASSES (from file - all SAFE ✅)
+    -- ═══════════════════════════════════════════════
+    
+    -- Movement Controller (Random Teleport)
+    local MovementController = {}
+    MovementController.__index = MovementController
+    function MovementController.new()
+        local self = setmetatable({}, MovementController)
+        self.originalPosition = nil
+        self.isRandomTeleporting = false
+        self.teleportConnection = nil
+        self.mapBounds = {min=Vector3.new(-500,0,-500), max=Vector3.new(500,200,500)}
+        return self
+    end
+    function MovementController:saveOriginalPosition()
+        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+            self.originalPosition = Player.Character.HumanoidRootPart.CFrame
+        end
+    end
+    function MovementController:getRandomMapPosition()
+        local x = math.random(self.mapBounds.min.X, self.mapBounds.max.X)
+        local z = math.random(self.mapBounds.min.Z, self.mapBounds.max.Z)
+        local y = math.random(10, 100)
+        return Vector3.new(x, y, z)
+    end
+    function MovementController:startRandomTeleport()
+        if not self.isRandomTeleporting then
+            self:saveOriginalPosition()
+            self.isRandomTeleporting = true
+            self.teleportConnection = RunService.Heartbeat:Connect(function()
+                if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                    local pos = self:getRandomMapPosition()
+                    Player.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+                end
+                task.wait(0.1)
+            end)
+        end
+    end
+    function MovementController:stopRandomTeleport()
+        if self.isRandomTeleporting then
+            self.isRandomTeleporting = false
+            if self.teleportConnection then
+                self.teleportConnection:Disconnect()
+                self.teleportConnection = nil
+            end
+            if self.originalPosition and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+                Player.Character.HumanoidRootPart.CFrame = self.originalPosition
+            end
+        end
+    end
+    function MovementController:isActive()
+        return self.isRandomTeleporting
+    end
 
-    -- ── Helper: find player by partial name ────────
-    local function TBT_FindPlayer(name)
-        if not name or name == "" then return nil end
-        name = name:lower()
+    -- Protection Controller (Anti-Bomb)
+    local ProtectionController = {}
+    ProtectionController.__index = ProtectionController
+    function ProtectionController.new()
+        local self = setmetatable({}, ProtectionController)
+        self.isProtecting = false
+        self.protectionConnection = nil
+        self.targetPlayer = nil
+        return self
+    end
+    function ProtectionController:setTarget(target)
+        self.targetPlayer = target
+    end
+    function ProtectionController:startProtection()
+        if self.isProtecting then return end
+        if not self.targetPlayer then return end
+        self.isProtecting = true
+        self.protectionConnection = RunService.Heartbeat:Connect(function()
+            if self.targetPlayer and self.targetPlayer.Character then
+                local targetHRP = self.targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local myHRP = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+                if targetHRP and myHRP then
+                    local offset = targetHRP.Position - targetHRP.CFrame.LookVector * 3
+                    myHRP.CFrame = CFrame.new(offset, targetHRP.Position)
+                end
+            else
+                self:stopProtection()
+            end
+        end)
+    end
+    function ProtectionController:stopProtection()
+        self.isProtecting = false
+        if self.protectionConnection then
+            self.protectionConnection:Disconnect()
+            self.protectionConnection = nil
+        end
+    end
+    function ProtectionController:toggle()
+        if self.isProtecting then
+            self:stopProtection()
+        else
+            self:startProtection()
+        end
+        return self.isProtecting
+    end
+    function ProtectionController:isActive()
+        return self.isProtecting
+    end
+
+    -- Bomb Detector
+    local BombDetector = {}
+    BombDetector.__index = BombDetector
+    function BombDetector.new()
+        return setmetatable({}, BombDetector)
+    end
+    function BombDetector:hasBomb()
+        if not Player.Character then return false end
+        for _, v in pairs(Player.Character:GetChildren()) do
+            if v:IsA("Tool") then
+                local n = v.Name:lower()
+                if n:find("bomb") or n:find("tnt") or n:find("explosive") then
+                    return true, v
+                end
+            end
+        end
+        for _, v in pairs(Player.Backpack:GetChildren()) do
+            if v:IsA("Tool") then
+                local n = v.Name:lower()
+                if n:find("bomb") or n:find("tnt") or n:find("explosive") then
+                    return true, v
+                end
+            end
+        end
+        return false
+    end
+
+    -- Bomb Transfer
+    local BombTransfer = {}
+    BombTransfer.__index = BombTransfer
+    function BombTransfer.new(bombDetector)
+        local self = setmetatable({}, BombTransfer)
+        self.bombDetector = bombDetector
+        self.autoTransferEnabled = false
+        self.transferConnection = nil
+        self.targetPlayer = nil
+        return self
+    end
+    function BombTransfer:setTarget(target)
+        self.targetPlayer = target
+    end
+    function BombTransfer:teleportToPlayer(p)
+        if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local targetPos = p.Character.HumanoidRootPart.Position
+                local offset = targetPos + p.Character.HumanoidRootPart.CFrame.LookVector * -2
+                Player.Character.HumanoidRootPart.CFrame = CFrame.new(offset, targetPos)
+                task.wait(0.2)
+                if p.Character and p.Character:FindFirstChild("Head") then
+                    Player.Character.HumanoidRootPart.CFrame = CFrame.lookAt(Player.Character.HumanoidRootPart.Position, p.Character.Head.Position)
+                end
+            end
+        end
+    end
+    function BombTransfer:transferBomb(target)
+        if target and target.Character then
+            self:teleportToPlayer(target)
+            local hasBomb, bombTool = self.bombDetector:hasBomb()
+            if hasBomb then
+                bombTool.Parent = target.Character
+            end
+            task.spawn(function()
+                for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                    if v:IsA("RemoteEvent") then
+                        local n = v.Name:lower()
+                        if n:find("bomb") or n:find("give") or n:find("pass") or n:find("transfer") or n:find("hot") then
+                            pcall(function()
+                                v:FireServer(target)
+                                v:FireServer(target.Character)
+                                v:FireServer(target.Character.Head)
+                                v:FireServer({player=target, target=target})
+                            end)
+                        end
+                    end
+                end
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("RemoteEvent") then
+                        local n = v.Name:lower()
+                        if n:find("bomb") or n:find("give") or n:find("pass") or n:find("transfer") or n:find("hot") then
+                            pcall(function()
+                                v:FireServer(target)
+                                v:FireServer(target.Character.Head)
+                            end)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    function BombTransfer:getClosestPlayer()
+        if self.targetPlayer and self.targetPlayer.Character and self.targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            return self.targetPlayer
+        end
+        if not (Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")) then
+            return nil
+        end
+        local closest = nil
+        local shortestDist = math.huge
+        local myPos = Player.Character.HumanoidRootPart.Position
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (p.Character.HumanoidRootPart.Position - myPos).Magnitude
+                if dist < shortestDist then
+                    closest = p
+                    shortestDist = dist
+                end
+            end
+        end
+        return closest
+    end
+    function BombTransfer:giveBombToClosest()
+        local target = self:getClosestPlayer()
+        if target then
+            self:transferBomb(target)
+        end
+    end
+    function BombTransfer:toggleAutoTransfer()
+        self.autoTransferEnabled = not self.autoTransferEnabled
+        if self.autoTransferEnabled then
+            self.transferConnection = RunService.Heartbeat:Connect(function()
+                task.wait(0.8)
+                if self.bombDetector:hasBomb() then
+                    self:giveBombToClosest()
+                    task.wait(1.5)
+                end
+            end)
+        else
+            if self.transferConnection then
+                self.transferConnection:Disconnect()
+                self.transferConnection = nil
+            end
+        end
+        return self.autoTransferEnabled
+    end
+
+    -- ESP Controller
+    local ESPController = {}
+    ESPController.__index = ESPController
+    function ESPController.new()
+        local self = setmetatable({}, ESPController)
+        self.espEnabled = false
+        self.espConnections = {}
+        return self
+    end
+    function ESPController:createESP(p)
+        if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local char = p.Character
+            if not char:FindFirstChild("WireframeESP") then
+                local folder = Instance.new("Folder")
+                folder.Name = "WireframeESP"
+                folder.Parent = char
+                local parts = char:FindFirstChild("UpperTorso") and {
+                    "Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand",
+                    "RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg",
+                    "LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot"
+                } or {"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg","HumanoidRootPart"}
+                for _, partName in ipairs(parts) do
+                    local part = char:FindFirstChild(partName)
+                    if part and part:IsA("BasePart") then
+                        local box = Instance.new("SelectionBox")
+                        box.Name = "ESP_"..partName
+                        box.Adornee = part
+                        box.Color3 = Color3.fromRGB(255,0,0)
+                        box.LineThickness = 0.1
+                        box.Transparency = 0.1
+                        box.Parent = folder
+                    end
+                end
+                self.espConnections[p] = {
+                    folder = folder,
+                    connection = char.AncestryChanged:Connect(function()
+                        if not char.Parent then
+                            folder:Destroy()
+                        end
+                    end)
+                }
+            end
+        end
+    end
+    function ESPController:toggleESP()
+        self.espEnabled = not self.espEnabled
+        if self.espEnabled then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= Player then
+                    if p.Character then
+                        self:createESP(p)
+                    end
+                    p.CharacterAdded:Connect(function()
+                        task.wait(0.3)
+                        if self.espEnabled then
+                            self:createESP(p)
+                        end
+                    end)
+                end
+            end
+            Players.PlayerAdded:Connect(function(p)
+                if self.espEnabled then
+                    p.CharacterAdded:Connect(function()
+                        task.wait(0.3)
+                        if self.espEnabled then
+                            self:createESP(p)
+                        end
+                    end)
+                end
+            end)
+        else
+            for _, data in pairs(self.espConnections) do
+                if data.folder then data.folder:Destroy() end
+                if data.connection then data.connection:Disconnect() end
+            end
+            self.espConnections = {}
+        end
+        return self.espEnabled
+    end
+
+    -- Ice Fix Controller
+    local IceFixController = {}
+    IceFixController.__index = IceFixController
+    function IceFixController.new()
+        local self = setmetatable({}, IceFixController)
+        self.iceFixEnabled = false
+        self.iceFixConnection = nil
+        return self
+    end
+    function IceFixController:fixIceParts()
+        if Player.Character then
+            local char = Player.Character
+            local hum = char:FindFirstChild("Humanoid")
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hum and hrp then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                for _, part in pairs(char:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.AssemblyLinearVelocity = Vector3.new(0, part.AssemblyLinearVelocity.Y, 0)
+                        part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                        if part.Material == Enum.Material.Ice then
+                            part.CustomPhysicalProperties = PhysicalProperties.new(0.7,0.5,0,1,1)
+                        end
+                    end
+                end
+            end
+            for _, part in pairs(workspace:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name:lower():find("ice") then
+                    part.CanTouch = false
+                    part.CustomPhysicalProperties = PhysicalProperties.new(0.7,1,0,1,1)
+                end
+            end
+        end
+    end
+    function IceFixController:toggle()
+        self.iceFixEnabled = not self.iceFixEnabled
+        if self.iceFixEnabled then
+            self.iceFixConnection = RunService.Heartbeat:Connect(function()
+                self:fixIceParts()
+            end)
+        else
+            if self.iceFixConnection then
+                self.iceFixConnection:Disconnect()
+                self.iceFixConnection = nil
+            end
+        end
+        return self.iceFixEnabled
+    end
+
+    -- Player Searcher
+    local PlayerSearcher = {}
+    PlayerSearcher.__index = PlayerSearcher
+    function PlayerSearcher.new()
+        return setmetatable({}, PlayerSearcher)
+    end
+    function PlayerSearcher:findByName(name)
+        if name == "" then return nil end
+        local lowerName = name:lower()
+        local closest = nil
+        local shortestDiff = math.huge
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= Player then
-                if p.Name:lower():find(name, 1, true)
-                   or p.DisplayName:lower():find(name, 1, true) then
-                    return p
-                end
-            end
-        end
-        return nil
-    end
-
-    -- ── Helper: check if has bomb ──────────────────
-    local function TBT_HasBomb(char)
-        if not char then return nil end
-        for _, t in pairs(char:GetChildren()) do
-            if t:IsA("Tool") then
-                local n = t.Name:lower()
-                if n:find("bomb") or n:find("tnt") or n:find("explosive") then
-                    return t
-                end
-            end
-        end
-        return nil
-    end
-
-    -- ── ESP function ──────────────────────────────
-    -- ── Team check helper ──
-    local function _isMyTeammate(p)
-        if not p or p == Player then return false end
-        if Player.Team and p.Team and Player.Team == p.Team then return true end
-        if Player.TeamColor and p.TeamColor and Player.TeamColor == p.TeamColor then return true end
-        return false
-    end
-
-    local function TBT_CreateESP(plr)
-        if plr == Player or not plr.Character then return end
-        if plr.Character:FindFirstChild("BoSqr_TBT_ESP") then return end
-        local h = Instance.new("Highlight")
-        h.Name = "BoSqr_TBT_ESP"
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.FillTransparency = 0.6
-        h.OutlineTransparency = 0
-        -- تحديد اللون حسب: الفريق + من معه القنبلة
-        local hasBomb = TBT_HasBomb(plr.Character) ~= nil
-        local isTeam = _isMyTeammate(plr)
-        if hasBomb and isTeam then
-            -- زميل ومعه قنبلة → أصفر (لا تقربه!)
-            h.FillColor = Color3.fromRGB(255, 220, 0)
-            h.OutlineColor = Color3.fromRGB(255, 200, 0)
-        elseif hasBomb and not isTeam then
-            -- عدو ومعه قنبلة → أحمر داكن
-            h.FillColor = Color3.fromRGB(200, 0, 0)
-            h.OutlineColor = Color3.fromRGB(255, 100, 0)
-        elseif isTeam then
-            -- زميل آمن → أزرق
-            h.FillColor = Color3.fromRGB(80, 160, 255)
-            h.OutlineColor = Color3.fromRGB(150, 220, 255)
-        else
-            -- عدو آمن → أخضر
-            h.FillColor = Color3.fromRGB(80, 255, 120)
-            h.OutlineColor = Color3.fromRGB(255, 255, 255)
-        end
-        h.Parent = plr.Character
-        -- BillboardGui للاسم
-        local head = plr.Character:FindFirstChild("Head")
-        if head then
-            local bb = Instance.new("BillboardGui")
-            bb.Name = "BoSqr_TBT_BB"
-            bb.Adornee = head
-            bb.Size = UDim2.new(0, 200, 0, 40)
-            bb.StudsOffset = Vector3.new(0, 3, 0)
-            bb.AlwaysOnTop = true
-            local lbl = Instance.new("TextLabel")
-            lbl.Parent = bb
-            lbl.BackgroundTransparency = 1
-            lbl.Size = UDim2.new(1, 0, 1, 0)
-            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-            lbl.Font = Enum.Font.GothamBold
-            lbl.TextSize = 13
-            lbl.TextStrokeTransparency = 0.5
-            bb.Parent = head
-            -- update loop
-            task.spawn(function()
-                while TBT_ESPActive and head.Parent do
-                    local hasBomb = TBT_HasBomb(plr.Character) ~= nil
-                    local isTeam = _isMyTeammate(plr)
-                    local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-                    local hp = hum and math.floor(hum.Health) or 0
-                    local dist = HRP and math.floor((HRP.Position - head.Position).Magnitude) or 0
-                    local teamMark = isTeam and "🟦" or "🔴"
-                    lbl.Text = teamMark .. " " .. plr.Name
-                               .. (hasBomb and " 💣" or "")
-                               .. " | ❤️" .. hp
-                               .. " | " .. dist .. "m"
-                    if h and h.Parent then
-                        if hasBomb and isTeam then
-                            h.FillColor = Color3.fromRGB(255, 220, 0)
-                            lbl.TextColor3 = Color3.fromRGB(255, 220, 0)
-                        elseif hasBomb and not isTeam then
-                            h.FillColor = Color3.fromRGB(200, 0, 0)
-                            lbl.TextColor3 = Color3.fromRGB(255, 100, 100)
-                        elseif isTeam then
-                            h.FillColor = Color3.fromRGB(80, 160, 255)
-                            lbl.TextColor3 = Color3.fromRGB(150, 200, 255)
-                        else
-                            h.FillColor = Color3.fromRGB(80, 255, 120)
-                            lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        end
+                local pName = p.Name:lower()
+                local pDisplay = (p.DisplayName or ""):lower()
+                if pName:find(lowerName, 1, true) or pDisplay:find(lowerName, 1, true) then
+                    local diff = math.abs(#pName - #lowerName)
+                    if diff < shortestDiff then
+                        closest = p
+                        shortestDiff = diff
                     end
-                    task.wait(0.5)
-                end
-            end)
-        end
-    end
-
-    local function TBT_ClearESP()
-        for _, p in pairs(Players:GetPlayers()) do
-            if p.Character then
-                local h = p.Character:FindFirstChild("BoSqr_TBT_ESP")
-                local head = p.Character:FindFirstChild("Head")
-                if h then h:Destroy() end
-                if head then
-                    local bb = head:FindFirstChild("BoSqr_TBT_BB")
-                    if bb then bb:Destroy() end
-                end
-            end
-        end
-    end
-
-    -- ── Give Bomb function (smooth teleport + anti-detect) ───
-    local TBT_LastBombGive = 0
-    local function TBT_GiveBomb(targetName)
-        -- Rate limit: 1 طلب كل 0.4 ثانية (لمنع البان)
-        local now = tick()
-        if (now - TBT_LastBombGive) < 0.4 then return end
-        TBT_LastBombGive = now
-
-        local target = TBT_FindPlayer(targetName)
-        if not target then
-            Notify("⚠️", Lang=="AR" and "اللاعب غير موجود" or "Player not found") return
-        end
-        if not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
-            Notify("⚠️", Lang=="AR" and "اللاعب بلا جسم" or "Target has no character") return
-        end
-        local myChar = Player.Character
-        if not myChar then return end
-        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-
-        local bomb = TBT_HasBomb(myChar)
-        if not bomb then
-            Notify("⚠️", Lang=="AR" and "ما عندك قنبلة!" or "You don't have a bomb!") return
-        end
-
-        local targetHRP = target.Character.HumanoidRootPart
-        local origPos = myHRP.CFrame
-
-        -- Smooth teleport (5 خطوات) لتجنب اكتشاف teleport-spam
-        task.spawn(function()
-            pcall(function()
-                local startPos = myHRP.Position
-                local endPos = targetHRP.Position + targetHRP.CFrame.LookVector * -2
-                -- خطوة 1-3: انتقال سلس
-                for i = 1, 3 do
-                    if not myHRP.Parent then return end
-                    local lerp = startPos:Lerp(endPos, i/3)
-                    myHRP.CFrame = CFrame.new(lerp, targetHRP.Position)
-                    task.wait(0.04)
-                end
-                -- خطوة 4: تأكيد الموقع
-                myHRP.CFrame = CFrame.new(endPos, targetHRP.Position)
-                task.wait(0.1)
-
-                -- نقل القنبلة
-                if bomb and bomb.Parent then
-                    bomb.Parent = target.Character
-                end
-
-                -- إطلاق Remote (مع pcall لكل واحد لمنع crashes)
-                task.spawn(function()
-                    for _, re in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-                        if re:IsA("RemoteEvent") then
-                            local n = re.Name:lower()
-                            if n:find("bomb") or n:find("transfer") or n:find("pass") then
-                                pcall(function() re:FireServer(target) end)
-                                pcall(function() re:FireServer(target.Character) end)
-                            end
-                        end
-                    end
-                end)
-
-                -- رجع لموقعنا الأصلي (sequential, مش instant)
-                task.wait(0.25)
-                if myHRP and myHRP.Parent then
-                    for i = 1, 3 do
-                        local lerp = endPos:Lerp(origPos.Position, i/3)
-                        myHRP.CFrame = CFrame.new(lerp)
-                        task.wait(0.03)
-                    end
-                    myHRP.CFrame = origPos
-                end
-            end)
-        end)
-        Notify("💣", (Lang=="AR" and "نقلت القنبلة لـ " or "Bombed ") .. target.Name)
-    end
-
-    -- ── TABS TBT ───────────────────────────────────
-    local Tabs = {
-        Home    = Window:AddTab({ Title = L("home"),    Icon = "home" }),
-        Bomb    = Window:AddTab({ Title = "💣 Bomb",    Icon = "alert-triangle" }),
-        ESP     = Window:AddTab({ Title = L("esp"),     Icon = "eye" }),
-        Player  = Window:AddTab({ Title = L("player"),  Icon = "user" }),
-        Visual  = Window:AddTab({ Title = L("visual"),  Icon = "sparkles" }),
-        Misc    = Window:AddTab({ Title = L("misc"),    Icon = "wrench" }),
-        Config  = Window:AddTab({ Title = L("config"),  Icon = "sliders-horizontal" }),
-    }
-
-    -- ── HOME ──────────────────────────────────────
-    Tabs.Home:AddSection("💣 Bo.Sqr | TimeBomb Duels")
-    Tabs.Home:AddParagraph({
-        Title = "👑 " .. L("dev"),
-        Content = "💬 " .. L("dev_content")
-    })
-    Tabs.Home:AddParagraph({
-        Title = "👤 " .. L("profile"),
-        Content = "👤 Name: @" .. Player.Name
-                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
-                  .. "\n🆔 ID: " .. tostring(Player.UserId)
-                  .. "\n🎮 Executor: " .. _identifyexecutor()
-                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
-                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
-    })
-    Tabs.Home:AddButton({
-        Title = "💬 " .. L("copy_discord"),
-        Description = "discord.gg/Riveteam",
-        Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅",L("copy_done")) end
-    })
-
-    -- ── BOMB ──────────────────────────────────────
-    Tabs.Bomb:AddSection("🎯 " .. (Lang=="AR" and "اختيار الهدف" or "Target Selection"))
-
-    local function TBT_GetPlayerNames()
-        local names = {}
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= Player then table.insert(names, p.Name) end
-        end
-        if #names == 0 then names = {"-- لا يوجد --"} end
-        return names
-    end
-
-    local TBT_PlayerDrop = Tabs.Bomb:AddDropdown("TBT_TargetDrop", {
-        Title = "🎯 " .. (Lang=="AR" and "اختر اللاعب" or "Select Player"),
-        Values = TBT_GetPlayerNames(),
-        Multi = false,
-        Default = TBT_GetPlayerNames()[1]
-    })
-    TBT_PlayerDrop:OnChanged(function(v)
-        if v and v ~= "-- لا يوجد --" then TBT_TargetName = v end
-    end)
-    Tabs.Bomb:AddButton({
-        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh List"),
-        Callback = function()
-            local names = TBT_GetPlayerNames()
-            pcall(function() TBT_PlayerDrop:SetValues(names) end)
-            Notify("🔄", Lang=="AR" and "تم التحديث" or "Refreshed")
-        end
-    })
-
-    Tabs.Bomb:AddSection("💣 " .. (Lang=="AR" and "ميزات القنبلة" or "Bomb Features"))
-
-    Tabs.Bomb:AddButton({
-        Title = "💣 " .. (Lang=="AR" and "أعطِ القنبلة للهدف" or "Give Bomb to Target"),
-        Description = Lang=="AR" and "تنتقل للهدف وتنقل القنبلة له" or "Teleport and transfer bomb",
-        Callback = function() TBT_GiveBomb(TBT_TargetName) end
-    })
-
-    -- Auto Transfer (يرسل القنبلة تلقائياً للأقرب)
-    Tabs.Bomb:AddToggle("TBT_AutoTransfer", {
-        Title = "💣 " .. (Lang=="AR" and "نقل تلقائي (للأقرب)" or "Auto Transfer (Nearest)"),
-        Description = Lang=="AR" and "ينقل القنبلة لأقرب لاعب فور حصولها" or "Auto sends bomb to nearest player",
-        Default = false
-    }):OnChanged(function()
-        TBT_AutoTransferActive = Options.TBT_AutoTransfer.Value
-        if TBT_AutoTransferActive then
-            Notify("💣", Lang=="AR" and "نقل تلقائي مفعل" or "Auto Transfer ON")
-            task.spawn(function()
-                while TBT_AutoTransferActive do
-                    task.wait(0.8)
-                    local myChar = Player.Character
-                    if myChar and TBT_HasBomb(myChar) then
-                        -- اعثر على أقرب لاعب
-                        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-                        if myHRP then
-                            local closest, minDist = nil, math.huge
-                            for _, p in pairs(Players:GetPlayers()) do
-                                if p ~= Player and p.Character
-                                   and p.Character:FindFirstChild("HumanoidRootPart") then
-                                    local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                                    if hum and hum.Health > 0 then
-                                        local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                                        if d < minDist then minDist = d closest = p end
-                                    end
-                                end
-                            end
-                            if closest then TBT_GiveBomb(closest.Name) end
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-
-    -- Anti-Bomb (يدفع القنبلة بعيد)
-    -- ══════════════════════════════════════════════════════════════
-    -- 🛡️ Anti-Bomb V4 — مع كشف الفريق (Team Detection)
-    -- ══════════════════════════════════════════════════════════════
-    -- نشيك على player.Team — ما نعطي القنبلة لزملائنا!
-    -- ولا نستخدم __namecall hook (يكشف بسرعة = ban)
-
-    -- ── 👥 Team Detection ──
-    -- نخزن فريقي ونعرف من معي ومن ضدي
-    local function _isTeammate(p)
-        -- نفس الفريق؟ → زميل
-        if not p or p == Player then return false end
-        local myTeam = Player.Team
-        local theirTeam = p.Team
-        if myTeam and theirTeam and myTeam == theirTeam then
-            return true
-        end
-        -- TeamColor فحص إضافي
-        if Player.TeamColor and p.TeamColor and Player.TeamColor == p.TeamColor then
-            return true
-        end
-        return false
-    end
-
-    -- ── 💣 من معه القنبلة الآن ──
-    local function _hasBomb(plr)
-        if not plr.Character then return false, nil end
-        for _, t in pairs(plr.Character:GetChildren()) do
-            if t:IsA("Tool") then
-                local n = t.Name:lower()
-                if n:find("bomb") or n:find("tnt") or n:find("explos") then
-                    return true, t
-                end
-            end
-        end
-        -- Backpack check
-        local bp = plr:FindFirstChildOfClass("Backpack")
-        if bp then
-            for _, t in pairs(bp:GetChildren()) do
-                if t:IsA("Tool") then
-                    local n = t.Name:lower()
-                    if n:find("bomb") or n:find("tnt") or n:find("explos") then
-                        return true, t
-                    end
-                end
-            end
-        end
-        return false, nil
-    end
-
-    -- ── 🎯 أقرب عدو (مش زميل) ──
-    local function _nearestEnemy()
-        local myChar = Player.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return nil end
-        local closest, minDist = nil, math.huge
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= Player and not _isTeammate(p)
-               and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local h = p.Character:FindFirstChildOfClass("Humanoid")
-                if h and h.Health > 0 then
-                    local d = (p.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                    if d < minDist then minDist = d closest = p end
                 end
             end
         end
         return closest
     end
 
-    -- ══════════════════════════════════════════════
-    -- زر: عرض من في فريقي (للمستخدم)
-    -- ══════════════════════════════════════════════
-    Tabs.Bomb:AddSection("👥 " .. (Lang=="AR" and "كشف الفريق" or "Team Detection"))
-    Tabs.Bomb:AddButton({
-        Title = "👥 " .. (Lang=="AR" and "من معي ومن ضدي؟" or "Who's on my team?"),
-        Description = Lang=="AR" and "يعرض زملاء الفريق والأعداء" or "Shows teammates and enemies",
-        Callback = function()
-            local teammates, enemies = {}, {}
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= Player then
-                    if _isTeammate(p) then
-                        table.insert(teammates, p.Name)
-                    else
-                        table.insert(enemies, p.Name)
-                    end
-                end
-            end
-            local msg = ""
-            if #teammates > 0 then
-                msg = msg .. "🟢 " .. (Lang=="AR" and "معك: " or "Team: ")
-                        .. table.concat(teammates, ", ") .. "\n"
-            end
-            if #enemies > 0 then
-                msg = msg .. "🔴 " .. (Lang=="AR" and "ضدك: " or "Enemies: ")
-                        .. table.concat(enemies, ", ")
-            end
-            if msg == "" then msg = Lang=="AR" and "ما في لاعبين" or "No players" end
-            Notify("👥", msg, 8)
-        end
-    })
-
-    Tabs.Bomb:AddSection("🛡️ " .. (Lang=="AR" and "حماية القنبلة" or "Bomb Protection"))
-
-    -- ══════════════════════════════════════════════
-    -- Anti-Bomb V4 — يحترم الفريق + بدون hook
-    -- ══════════════════════════════════════════════
-    Tabs.Bomb:AddToggle("TBT_AntiBomb", {
-        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb (احترام الفريق)" or "Anti Bomb (Team-Aware)"),
-        Description = Lang=="AR" and "يرمي القنبلة لعدو فقط (ليس زميل)" or "Throws bomb to enemy only",
-        Default = false
-    }):OnChanged(function()
-        TBT_AntiBombActive = Options.TBT_AntiBomb.Value
-        if TBT_AntiBombActive then
-            Notify("🛡️", Lang=="AR" and "Anti Bomb مفعل (يحترم الفريق)" or "Anti Bomb ON (team-aware)")
-            task.spawn(function()
-                while TBT_AntiBombActive do
-                    pcall(function()
-                        local has, bomb = _hasBomb(Player)
-                        if has and bomb then
-                            local enemy = _nearestEnemy()
-                            if enemy and enemy.Character then
-                                local tHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
-                                local h = bomb:FindFirstChild("Handle")
-                                if tHRP and h then
-                                    -- نقل القنبلة (Parent + firetouchinterest)
-                                    pcall(function() bomb.Parent = enemy.Character end)
-                                    task.wait(0.05)
-                                    pcall(function()
-                                        firetouchinterest(tHRP, h, 1)
-                                        firetouchinterest(tHRP, h, 0)
-                                    end)
-                                end
-                            end
-                            -- لو ما في عدو، خل القنبلة معك (لا تنفجر بصاحبك)
-                        end
-                    end)
-                    task.wait(0.2) -- بطيء عشان ما يكشف
-                end
-            end)
-        else
-            Notify("🛡️", Lang=="AR" and "Anti Bomb أوقف" or "Anti Bomb OFF")
-        end
-    end)
-
-    -- ══════════════════════════════════════════════
-    -- Auto Bomb — يعطي القنبلة لأقرب عدو تلقائياً
-    -- ══════════════════════════════════════════════
-    local TBT_AutoBombActive = false
-    Tabs.Bomb:AddToggle("TBT_AutoBomb", {
-        Title = "💣 " .. (Lang=="AR" and "Auto Bomb (عدو فقط)" or "Auto Bomb (Enemy Only)"),
-        Description = Lang=="AR" and "ينقل القنبلة لأقرب عدو (ليس زميل)" or "Auto-pass to nearest enemy",
-        Default = false
-    }):OnChanged(function()
-        TBT_AutoBombActive = Options.TBT_AutoBomb.Value
-        if TBT_AutoBombActive then
-            Notify("💣", Lang=="AR" and "Auto Bomb مفعل (للعدو)" or "Auto Bomb ON (enemy)")
-            task.spawn(function()
-                while TBT_AutoBombActive do
-                    pcall(function()
-                        local has, bomb = _hasBomb(Player)
-                        if has and bomb then
-                            local enemy = _nearestEnemy()
-                            if enemy and enemy.Character then
-                                local tHRP = enemy.Character:FindFirstChild("HumanoidRootPart")
-                                local h = bomb:FindFirstChild("Handle")
-                                if tHRP and h then
-                                    pcall(function() bomb.Parent = enemy.Character end)
-                                    task.wait(0.05)
-                                    pcall(function()
-                                        firetouchinterest(tHRP, h, 1)
-                                        firetouchinterest(tHRP, h, 0)
-                                    end)
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.3)
-                end
-            end)
-        else
-            Notify("💣", Lang=="AR" and "Auto Bomb أوقف" or "Auto Bomb OFF")
-        end
-    end)
-
-        -- ── ESP ──────────────────────────────────────
-    Tabs.ESP:AddSection("👁️ " .. L("esp"))
-    Tabs.ESP:AddToggle("TBT_ESP", {
-        Title = "👁️ " .. (Lang=="AR" and "كشف اللاعبين (ESP)" or "Players ESP"),
-        Description = Lang=="AR" and "أحمر = معه قنبلة | أخضر = آمن" or "Red = has bomb | Green = safe",
-        Default = false
-    }):OnChanged(function()
-        TBT_ESPActive = Options.TBT_ESP.Value
-        if TBT_ESPActive then
-            for _, p in pairs(Players:GetPlayers()) do
-                TBT_CreateESP(p)
-            end
-            Players.PlayerAdded:Connect(function(p)
-                if TBT_ESPActive then
-                    p.CharacterAdded:Connect(function()
-                        task.wait(0.5)
-                        TBT_CreateESP(p)
-                    end)
-                end
-            end)
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= Player then
-                    p.CharacterAdded:Connect(function()
-                        if TBT_ESPActive then task.wait(0.3) TBT_CreateESP(p) end
-                    end)
-                end
-            end
-            Notify("👁️", Lang=="AR" and "ESP مفعل" or "ESP ON")
-        else
-            TBT_ClearESP()
-        end
-    end)
-
-    -- ── PLAYER ───────────────────────────────────
-    Tabs.Player:AddSection("📊 " .. (Lang=="AR" and "حركة اللاعب" or "Player Movement"))
-    Tabs.Player:AddSlider("TBT_WalkSpeed", {
-        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
-        Min = 16, Max = 200, Default = 16, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.WalkSpeed = v end
-        end
-    })
-    Tabs.Player:AddSlider("TBT_JumpPower", {
-        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
-        Min = 50, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.JumpPower = v end
-        end
-    })
-
-    Tabs.Player:AddSection("✈️ " .. (Lang=="AR" and "حركة إضافية" or "Extra Movement"))
-
-    -- Fly
-    local TBT_FlyActive = false
-    local TBT_FlyConn = nil
-    local TBT_FlySpeed = 50
-    Tabs.Player:AddToggle("TBT_Fly", {
-        Title = "✈️ " .. (Lang=="AR" and "طيران" or "Fly"),
-        Default = false
-    }):OnChanged(function()
-        TBT_FlyActive = Options.TBT_Fly.Value
-        _G.BoSqr_FlyActive = TBT_FlyActive
-        if TBT_FlyActive then
-            if not HRP then return end
-            local _isMob = UserInputService.TouchEnabled
-            if _isMob then
-                -- Mobile fly: استخدم HRP.Velocity مباشرة
-                TBT_FlyConn = RunService.Heartbeat:Connect(function()
-                    if not TBT_FlyActive or not HRP or not Humanoid then return end
-                    local md = Humanoid.MoveDirection
-                    if md.Magnitude > 0 then
-                        HRP.Velocity = md * TBT_FlySpeed + Vector3.new(0, HRP.Velocity.Y * 0.5, 0)
-                    end
-                    HRP.Velocity = Vector3.new(HRP.Velocity.X, math.max(0, HRP.Velocity.Y), HRP.Velocity.Z)
-                end)
-                if Humanoid then Humanoid.JumpPower = 200 end
-                Notify("✈️", Lang=="AR" and "طيران (جوال)" or "Fly (Mobile)")
-            else
-                -- PC fly
-                local bg = Instance.new("BodyGyro")
-                bg.Name = "BoSqr_FlyG"
-                bg.MaxTorque = Vector3.new(9e9,9e9,9e9)
-                bg.P = 9e4
-                bg.CFrame = HRP.CFrame
-                bg.Parent = HRP
-                local bv = Instance.new("BodyVelocity")
-                bv.Name = "BoSqr_FlyV"
-                bv.MaxForce = Vector3.new(9e9,9e9,9e9)
-                bv.Velocity = Vector3.new(0,0,0)
-                bv.Parent = HRP
-                TBT_FlyConn = RunService.RenderStepped:Connect(function()
-                    if not TBT_FlyActive or not HRP then return end
-                    local cam = workspace.CurrentCamera
-                    local mv = Vector3.new(0,0,0)
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then mv = mv + cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then mv = mv - cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then mv = mv - cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then mv = mv + cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then mv = mv + Vector3.new(0,1,0) end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then mv = mv - Vector3.new(0,1,0) end
-                    if mv.Magnitude > 0 then mv = mv.Unit * TBT_FlySpeed end
-                    bv.Velocity = mv
-                    bg.CFrame = cam.CFrame
-                end)
-                Notify("✈️", "Fly ON")
-            end
-        else
-            if TBT_FlyConn then TBT_FlyConn:Disconnect() TBT_FlyConn = nil end
-            if HRP then
-                for _, v in pairs(HRP:GetChildren()) do
-                    if v:IsA("BodyGyro") or v:IsA("BodyVelocity")
-                       or v:IsA("BodyForce") or v:IsA("BodyMover") then
-                        v:Destroy()
-                    end
-                end
-            end
-            if Humanoid then Humanoid.JumpPower = 50 end
-        end
-    end)
-    Tabs.Player:AddSlider("TBT_FlySpeed", {
-        Title = "✈️ " .. (Lang=="AR" and "سرعة الطيران" or "Fly Speed"),
-        Min = 10, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v) TBT_FlySpeed = v end
-    })
-
-    -- Noclip
-    local TBT_NoclipActive = false
-    local TBT_NoclipConn = nil
-    Tabs.Player:AddToggle("TBT_Noclip", {
-        Title = "👻 Noclip",
-        Default = false
-    }):OnChanged(function()
-        TBT_NoclipActive = Options.TBT_Noclip.Value
-        if TBT_NoclipActive then
-            TBT_NoclipConn = RunService.Stepped:Connect(function()
-                if Character then
-                    for _, p in pairs(Character:GetDescendants()) do
-                        if p:IsA("BasePart") then p.CanCollide = false end
-                    end
-                end
-            end)
-        else
-            if TBT_NoclipConn then TBT_NoclipConn:Disconnect() TBT_NoclipConn = nil end
-            if Character then
-                for _, p in pairs(Character:GetDescendants()) do
-                    if p:IsA("BasePart") then p.CanCollide = true end
-                end
-            end
-        end
-    end)
-
-    -- Infinite Jump
-    Tabs.Player:AddToggle("TBT_InfJump", {
-        Title = "🦘 " .. (Lang=="AR" and "قفز لا نهائي" or "Infinite Jump"),
-        Default = false
-    }):OnChanged(function()
-        if Options.TBT_InfJump.Value and not _G.TBT_InfJumpInit then
-            _G.TBT_InfJumpInit = true
-            UserInputService.JumpRequest:Connect(function()
-                if Options.TBT_InfJump and Options.TBT_InfJump.Value and Humanoid then
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-            end)
-        end
-    end)
-
-    -- ── ANTI-MOVEMENT-LOCK BUTTON (الحل لمشكلة الجوال) ──
-    Tabs.Player:AddSection("🆘 " .. (Lang=="AR" and "حالات الطوارئ" or "Emergency"))
-    Tabs.Player:AddButton({
-        Title = "🆘 " .. (Lang=="AR" and "تحرير الحركة (لو علقت!)" or "Unfreeze Movement (if stuck)"),
-        Description = Lang=="AR" and "اضغط إذا ما تقدر تتحرك" or "Press if you can't move",
-        Callback = function()
-            local c = Player.Character
-            if not c then return end
-            for _, p in pairs(c:GetDescendants()) do
-                if p:IsA("BodyVelocity") or p:IsA("BodyGyro")
-                   or p:IsA("BodyMover") or p:IsA("BodyForce")
-                   or p:IsA("BodyPosition") or p:IsA("BodyAngularVelocity") then
-                    p:Destroy()
-                end
-                if p:IsA("BasePart") then
-                    p.Anchored = false
-                    p.CanCollide = true
-                end
-            end
-            local h = c:FindFirstChildOfClass("Humanoid")
-            if h then
-                h.WalkSpeed = 16
-                h.JumpPower = 50
-                h.AutoRotate = true
-                h.PlatformStand = false
-                h.Sit = false
-            end
-            Notify("🆘", Lang=="AR" and "تم تحرير الحركة!" or "Movement unlocked!")
-        end
-    })
-
-    -- ── VISUAL ─────────────────────────────────────
-    Tabs.Visual:AddSection("💡 " .. (Lang=="AR" and "الإضاءة" or "Lighting"))
-    Tabs.Visual:AddToggle("TBT_FullBright", {
-        Title = "☀️ Full Bright",
-        Default = false
-    }):OnChanged(function()
-        local L = game:GetService("Lighting")
-        if Options.TBT_FullBright.Value then
-            L.Brightness = 10
-            L.ClockTime = 14
-            L.FogEnd = 1e6
-            L.GlobalShadows = false
-        else
-            L.Brightness = 2 L.ClockTime = 14 L.FogEnd = 100000 L.GlobalShadows = true
-        end
-    end)
-    Tabs.Visual:AddSlider("TBT_FOV", {
-        Title = "👁️ " .. (Lang=="AR" and "مجال الرؤية" or "Field of View"),
-        Min = 40, Max = 120, Default = 70, Rounding = 0,
-        Callback = function(v) workspace.CurrentCamera.FieldOfView = v end
-    })
-
-    -- ── MISC ──────────────────────────────────────
-    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
-    Tabs.Misc:AddToggle("TBT_AntiAFK", {
-        Title = "😴 Anti AFK",
-        Default = true
-    }):OnChanged(function() _G.TBT_AntiAFK = Options.TBT_AntiAFK.Value end)
-    -- AntiAFK loop
-    LocalPlayer.Idled:Connect(function()
-        if _G.TBT_AntiAFK then
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end
-    end)
-
-    Tabs.Misc:AddButton({
-        Title = "🌍 " .. (Lang=="AR" and "تيليبورت عشوائي" or "Random Teleport"),
-        Callback = function()
-            if not HRP then return end
-            local rx = math.random(-200, 200)
-            local rz = math.random(-200, 200)
-            HRP.CFrame = HRP.CFrame + Vector3.new(rx, 5, rz)
-            Notify("🌍", Lang=="AR" and "تيليبورت!" or "Teleported!")
-        end
-    })
-    Tabs.Misc:AddButton({
-        Title = "🏠 " .. (Lang=="AR" and "العودة للسباون" or "Reset to Spawn"),
-        Callback = function() if Humanoid then Humanoid.Health = 0 end end
-    })
-
-    -- ── CONFIG ────────────────────────────────────
-    Tabs.Config:AddSection("🎨 " .. L("config_theme"))
-    local _themeMapTBT = {
-        Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
-        Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
-        Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
-        Green={Accent=Color3.fromRGB(0,200,80),Dark=Color3.fromRGB(10,20,12)},
-        Orange={Accent=Color3.fromRGB(255,140,0),Dark=Color3.fromRGB(22,14,8)},
-        Red={Accent=Color3.fromRGB(255,50,50),Dark=Color3.fromRGB(22,8,8)},
-        Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
-        Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
-    }
-    local function applyThemeTBT(v)
-        local t = _themeMapTBT[v] if not t then return end
-        _G.BoSqr_Theme = v
-        task.spawn(function()
-            pcall(function()
-                local function recolor(obj)
-                    if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
-                        local c=obj.BackgroundColor3
-                        local r,g,b=c.R*255,c.G*255,c.B*255
-                        if r<55 and g<55 and b<65 and obj.BackgroundTransparency<0.9 then
-                            obj.BackgroundColor3=t.Dark
-                        end
-                    end
-                    if obj:IsA("UIStroke") then obj.Color=t.Accent end
-                    for _,ch in pairs(obj:GetChildren()) do recolor(ch) end
-                end
-                local cg=game:GetService("CoreGui")
-                for _,ch in pairs(cg:GetChildren()) do pcall(recolor,ch) end
-                local pg=Player:FindFirstChild("PlayerGui")
-                if pg then for _,ch in pairs(pg:GetChildren()) do pcall(recolor,ch) end end
-            end)
-            Notify("🎨",v.." ✅")
-        end)
+    -- Target Tool
+    local TargetTool = {}
+    TargetTool.__index = TargetTool
+    function TargetTool.new()
+        return setmetatable({}, TargetTool)
     end
-    if _G.BoSqr_Theme then task.delay(1,function() pcall(applyThemeTBT,_G.BoSqr_Theme) end) end
-    local TBT_ThemeDrop = Tabs.Config:AddDropdown("TBT_ThemeDrop", {
-        Title = L("config_theme"),
-        Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
-        Multi = false, Default = _G.BoSqr_Theme or "Rose"
-    })
-    TBT_ThemeDrop:OnChanged(applyThemeTBT)
-
-    Tabs.Config:AddSection("🌐 " .. L("config_lang"))
-    local _ldDefault = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
-    local TBT_LangDrop = Tabs.Config:AddDropdown("TBT_LangDrop", {
-        Title = L("config_lang"),
-        Values = {"EN - English", "AR - العربية"},
-        Multi = false, Default = _ldDefault
-    })
-    TBT_LangDrop:OnChanged(function(v)
-        if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
-        else Lang = "EN" _G.BoSqr_Lang = "EN" end
-        Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
-    end)
-
-    Tabs.Config:AddSection("⚙️")
-    local _closeTBT_confirm = false
-    Tabs.Config:AddButton({
-        Title = "❌ " .. L("close_script"),
-        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
-        Callback = function()
-            if not _closeTBT_confirm then
-                _closeTBT_confirm = true
-                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
-                task.delay(5, function() _closeTBT_confirm = false end)
-                return
-            end
-            TBT_ESPActive = false
-            TBT_AutoTransferActive = false
-            TBT_FlyActive = false
-            TBT_NoclipActive = false
-            TBT_AntiBombActive = false
-            TBT_AutoBombActive = false
-            if TBT_FlyConn then TBT_FlyConn:Disconnect() end
-            if TBT_NoclipConn then TBT_NoclipConn:Disconnect() end
-            pcall(TBT_ClearESP)
-            -- احذف TapBar
-            -- نظف Fling
-            pcall(function()
-                if _G.BoSqr_FlingCleanup then _G.BoSqr_FlingCleanup() end
-                _G.BoSqr_FlingActive = false
-            end)
-            -- احذف TapBar من كل الأماكن المحتملة
-            pcall(function()
-                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
-            end)
-            -- احتياطي: ابحث وامسح أي ScreenGui باسم BoSqrRiveTap
-            pcall(function()
-                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
-                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                end
-                local pg = LocalPlayer:FindFirstChild("PlayerGui")
-                if pg then
-                    for _, g in pairs(pg:GetChildren()) do
-                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
-                    end
-                end
-            end)
-            _getgenv().bosqr_loaded = nil
-            pcall(function() Window:Destroy() end)
+    function TargetTool:giveTool(callback)
+        for _, v in pairs(Player.Backpack:GetChildren()) do
+            if v.Name == "ClickTarget" then v:Destroy() end
         end
-    })
-
-    task.wait(1)
-    Notify("💣 Bo.Sqr | TimeBomb",
-        (Lang=="AR" and "تم التحميل!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"
-         or "Loaded!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"), 8)
-    -- silent load
-
--- ═══════════════════════════════════════════════════════════════
--- ⛏️ PICKAXE SIMULATOR - FLUENT TABS (SAME AS MM2/KW)
--- ═══════════════════════════════════════════════════════════════
-elseif currentMapID == _D then
-    do
-    local Player = LocalPlayer
-    local Character = Player.Character or Player.CharacterAdded:Wait()
-    local Humanoid = Character:WaitForChild("Humanoid")
-    local HRP = Character:WaitForChild("HumanoidRootPart")
-
-    Player.CharacterAdded:Connect(function(c)
-        Character = c
-        Humanoid = c:WaitForChild("Humanoid")
-        HRP = c:WaitForChild("HumanoidRootPart")
-    end)
-
-    -- ═══ VARIABLES ═══
-    local playerStatsFolder = nil
-    local settingsFolder = nil
-    local PMS_AutoRewardActive = false
-
-    -- ═══ INIT STATS FOLDER ═══
-    task.spawn(function()
-        local stats = game:GetService("ReplicatedStorage"):WaitForChild("Stats", 10)
-        if stats then
-            playerStatsFolder = stats:WaitForChild(Player.Name, 10)
-            if playerStatsFolder then
-                settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
-            end
+        for _, v in pairs(Player.Character:GetChildren()) do
+            if v.Name == "ClickTarget" then v:Destroy() end
         end
-    end)
+        local tool = Instance.new("Tool")
+        tool.Name = "ClickTarget"
+        tool.RequiresHandle = false
+        tool.TextureId = "rbxassetid://13769558274"
+        tool.ToolTip = "Choose Player"
+        tool.Activated:Connect(function()
+            local target = Player:GetMouse().Target
+            local targetPlayer = nil
+            if target and target.Parent then
+                if target.Parent:IsA("Model") then
+                    targetPlayer = Players:GetPlayerFromCharacter(target.Parent)
+                elseif target.Parent:IsA("Accessory") then
+                    targetPlayer = Players:GetPlayerFromCharacter(target.Parent.Parent)
+                end
+                if targetPlayer and targetPlayer ~= Player then
+                    callback(targetPlayer)
+                    tool:Destroy()
+                end
+            end
+        end)
+        tool.Parent = Player.Backpack
+    end
 
-    -- ═══ TABS (SAME AS MM2/KW) ═══
+    -- ═══════════════════════════════════════════════
+    -- Initialize Controllers
+    -- ═══════════════════════════════════════════════
+    local bombDetector = BombDetector.new()
+    local bombTransfer = BombTransfer.new(bombDetector)
+    local espController = ESPController.new()
+    local playerSearcher = PlayerSearcher.new()
+    local iceFixController = IceFixController.new()
+    local targetTool = TargetTool.new()
+    local movementController = MovementController.new()
+    local protectionController = ProtectionController.new()
+    local TBT_TargetPlayer = nil
+
+    -- ═══════════════════════════════════════════════
+    -- FLUENT TABS
+    -- ═══════════════════════════════════════════════
     local Tabs = {
-        Home   = Window:AddTab({ Title = L("home"),   Icon = "home" }),
-        Mining = Window:AddTab({ Title = Lang=="AR" and "⛏️ التعدين" or "⛏️ Mining", Icon = "pickaxe" }),
-        Player = Window:AddTab({ Title = L("player"), Icon = "user" }),
-        Misc   = Window:AddTab({ Title = L("misc"),   Icon = "wrench" }),
+        Home = Window:AddTab({ Title = L("home"), Icon = "home" }),
+        Bomb = Window:AddTab({ Title = Lang=="AR" and "💣 القنبلة" or "💣 Bomb", Icon = "bomb" }),
+        ESP  = Window:AddTab({ Title = "👁️ ESP", Icon = "eye" }),
+        Misc = Window:AddTab({ Title = L("misc"), Icon = "wrench" }),
         Config = Window:AddTab({ Title = L("config"), Icon = "sliders-horizontal" }),
     }
 
     -- ── HOME ────────────────────────────────────────
-    Tabs.Home:AddSection("⛏️ Bo.Sqr | Pickaxe Simulator")
+    Tabs.Home:AddSection("💣 Bo.Sqr | TimeBomb Duels")
     Tabs.Home:AddParagraph({
         Title = "👑 " .. L("dev"),
         Content = "💬 " .. L("dev_content")
@@ -5210,188 +4421,129 @@ elseif currentMapID == _D then
         Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅", L("copy_done")) end
     })
 
-    -- ── MINING TAB ────────────────────────────────────────
-    Tabs.Mining:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
+    -- ── BOMB TAB ────────────────────────────────────────
+    Tabs.Bomb:AddSection("💣 " .. (Lang=="AR" and "نقل القنبلة" or "Bomb Transfer"))
     
-    -- AutoRebirth
-    Tabs.Mining:AddToggle("PMS_AutoRebirth", {
-        Title = "🔄 " .. (Lang=="AR" and "Auto Rebirth" or "Auto Rebirth"),
-        Description = Lang=="AR" and "إعادة ميلاد تلقائية" or "Automatic rebirth",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoRebirth")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoRebirth.Value
-                Notify("🔄", (Lang=="AR" and "Auto Rebirth: " or "Auto Rebirth: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    -- AutoTrain
-    Tabs.Mining:AddToggle("PMS_AutoTrain", {
-        Title = "💪 " .. (Lang=="AR" and "Auto Train" or "Auto Train"),
-        Description = Lang=="AR" and "تدريب تلقائي" or "Automatic training",
-        Default = false
-    }):OnChanged(function()
-        task.spawn(function()
-            repeat task.wait(0.5) until settingsFolder
-            local setting = settingsFolder:FindFirstChild("AutoTrain")
-            if setting and setting:IsA("BoolValue") then
-                setting.Value = Options.PMS_AutoTrain.Value
-                Notify("💪", (Lang=="AR" and "Auto Train: " or "Auto Train: ")
-                    .. (setting.Value and "ON" or "OFF"))
-            end
-        end)
-    end)
-
-    Tabs.Mining:AddSection("🥚 " .. (Lang=="AR" and "البيض" or "Eggs"))
-
-    -- Egg Hatch Speed
-    Tabs.Mining:AddButton({
-        Title = "🥚 " .. (Lang=="AR" and "سرعة فقس البيض (7)" or "Egg Hatch Speed (7)"),
-        Description = Lang=="AR" and "يسرع فقس البيض" or "Speeds up egg hatching",
+    Tabs.Bomb:AddButton({
+        Title = "💣 " .. (Lang=="AR" and "إعطاء القنبلة (أقرب لاعب)" or "Give Bomb (Closest)") .. " ✅ SAFE",
+        Description = Lang=="AR" and "ينقل القنبلة للاعب الأقرب" or "Transfer bomb to closest player",
         Callback = function()
-            task.spawn(function()
-                repeat task.wait(0.5) until playerStatsFolder
-                local eggStats = playerStatsFolder:FindFirstChild("EggStats")
-                if eggStats then
-                    local stat = eggStats:FindFirstChild("HatchSpeed")
-                    if stat and stat:IsA("NumberValue") then
-                        stat.Value = 7
-                        Notify("🥚", (Lang=="AR" and "سرعة الفقس: " or "Hatch Speed: ") .. stat.Value)
-                    end
+            bombTransfer:giveBombToClosest()
+            Notify("💣", Lang=="AR" and "تم نقل القنبلة!" or "Bomb transferred!")
+        end
+    })
+
+    Tabs.Bomb:AddToggle("TBT_AutoTransfer", {
+        Title = "🔄 " .. (Lang=="AR" and "Auto Transfer" or "Auto Transfer") .. " ✅ SAFE",
+        Description = Lang=="AR" and "ينقل القنبلة تلقائياً للأقرب" or "Auto transfer bomb to closest",
+        Default = false
+    }):OnChanged(function()
+        local active = bombTransfer:toggleAutoTransfer()
+        Notify("🔄", (Lang=="AR" and "Auto Transfer: " or "Auto Transfer: ") .. (active and "ON" or "OFF"))
+    end)
+
+    Tabs.Bomb:AddSection("🎯 " .. (Lang=="AR" and "Target" or "Target"))
+
+    local TBT_TargetInput = Tabs.Bomb:AddInput("TBT_TargetName", {
+        Title = "👤 " .. (Lang=="AR" and "اسم اللاعب" or "Player Name"),
+        Default = "",
+        Placeholder = Lang=="AR" and "اكتب الاسم..." or "Enter name...",
+        Numeric = false,
+        Finished = false,
+        Callback = function(value)
+            if value == "" then
+                TBT_TargetPlayer = nil
+                bombTransfer:setTarget(nil)
+                protectionController:setTarget(nil)
+                Notify("🎯", Lang=="AR" and "تم إلغاء Target" or "Target cleared")
+            else
+                local target = playerSearcher:findByName(value)
+                if target then
+                    TBT_TargetPlayer = target
+                    bombTransfer:setTarget(target)
+                    protectionController:setTarget(target)
+                    Notify("🎯", "Target: " .. target.Name)
+                else
+                    Notify("❌", Lang=="AR" and "لم يتم العثور على اللاعب" or "Player not found")
                 end
+            end
+        end
+    })
+
+    Tabs.Bomb:AddButton({
+        Title = "🖱️ " .. (Lang=="AR" and "Target Tool (اختر بالماوس)" or "Target Tool (Click)") .. " ✅ SAFE",
+        Description = Lang=="AR" and "اضغط على لاعب لاختياره" or "Click on a player to target",
+        Callback = function()
+            targetTool:giveTool(function(target)
+                TBT_TargetPlayer = target
+                bombTransfer:setTarget(target)
+                protectionController:setTarget(target)
+                Notify("🎯", "Target: " .. target.Name)
             end)
         end
     })
 
-    -- AutoRewardEgg
-    Tabs.Mining:AddToggle("PMS_AutoReward", {
-        Title = "🎁 " .. (Lang=="AR" and "Auto Reward Egg" or "Auto Reward Egg"),
-        Description = Lang=="AR" and "جمع مكافآت البيض تلقائياً" or "Auto collect egg rewards",
+    Tabs.Bomb:AddSection("🛡️ " .. (Lang=="AR" and "الحماية" or "Protection"))
+
+    Tabs.Bomb:AddToggle("TBT_AntiBomb", {
+        Title = "🛡️ " .. (Lang=="AR" and "Anti Bomb" or "Anti Bomb") .. " ✅ SAFE",
+        Description = Lang=="AR" and "يتبع Target لحمايته" or "Follow target to protect",
         Default = false
     }):OnChanged(function()
-        PMS_AutoRewardActive = Options.PMS_AutoReward.Value
-        if PMS_AutoRewardActive then
-            Notify("🎁", Lang=="AR" and "Auto Reward مفعل" or "Auto Reward ON")
-            task.spawn(function()
-                while PMS_AutoRewardActive do
-                    task.wait(0.3)
-                    pcall(function()
-                        local menus = Player.PlayerGui:FindFirstChild("Menus")
-                        if menus then
-                            local rewardUI = menus:FindFirstChild("Reward")
-                            if rewardUI then
-                                local main = rewardUI.Frame.Main
-                                local available = main.Claim.Main:FindFirstChild("Available")
-                                if available and available.Visible == true then
-                                    main.Claim:Activate()
-                                end
-                            end
-                        end
-                    end)
-                end
-            end)
-        else
-            Notify("🎁", Lang=="AR" and "Auto Reward أوقف" or "Auto Reward OFF")
-        end
+        local active = protectionController:toggle()
+        Notify("🛡️", (Lang=="AR" and "Anti Bomb: " or "Anti Bomb: ") .. (active and "ON" or "OFF"))
     end)
 
-    Tabs.Mining:AddSection("⚠️ " .. (Lang=="AR" and "ميزات خطرة (احتمال باند!)" or "RISKY Features (Ban Risk!)"))
-
-    -- Premium (with warning)
-    local PMS_PremiumWarned = false
-    Tabs.Mining:AddToggle("PMS_Premium", {
-        Title = "💎 Premium",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_Premium.Value and not PMS_PremiumWarned then
-            PMS_PremiumWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "Premium = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "Premium = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local premium = analytics:FindFirstChild("IsPremium")
-                if premium and premium:IsA("BoolValue") then
-                    premium.Value = Options.PMS_Premium.Value
-                    Notify("💎", "Premium: " .. (premium.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- In Group (with warning)
-    local PMS_GroupWarned = false
-    Tabs.Mining:AddToggle("PMS_InGroup", {
-        Title = "👥 In Group",
-        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
-        Default = false
-    }):OnChanged(function()
-        if Options.PMS_InGroup.Value and not PMS_GroupWarned then
-            PMS_GroupWarned = true
-            Notify("⚠️ تحذير!", 
-                (Lang=="AR" and 
-                "In Group = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
-                or 
-                "In Group = Very high ban risk!\nUse at your own risk!"), 8)
-        end
-        task.spawn(function()
-            repeat task.wait(0.5) until playerStatsFolder
-            local analytics = playerStatsFolder:FindFirstChild("Analytics")
-            if analytics then
-                local inGroup = analytics:FindFirstChild("IsInGroup")
-                if inGroup and inGroup:IsA("BoolValue") then
-                    inGroup.Value = Options.PMS_InGroup.Value
-                    Notify("👥", "In Group: " .. (inGroup.Value and "ON ⚠️" or "OFF"))
-                end
-            end
-        end)
-    end)
-
-    -- ── PLAYER TAB ────────────────────────────────────────
-    Tabs.Player:AddSection("🏃 " .. (Lang=="AR" and "الحركة" or "Movement"))
+    -- ── ESP TAB ────────────────────────────────────────
+    Tabs.ESP:AddSection("👁️ ESP")
     
-    Tabs.Player:AddSlider("PMS_WalkSpeed", {
-        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
-        Description = Lang=="AR" and "16 = عادي" or "16 = normal",
-        Min = 16, Max = 200, Default = 16, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.WalkSpeed = v end
-        end
-    })
-
-    Tabs.Player:AddSlider("PMS_JumpPower", {
-        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
-        Description = Lang=="AR" and "50 = عادي" or "50 = normal",
-        Min = 50, Max = 300, Default = 50, Rounding = 0,
-        Callback = function(v)
-            if Humanoid then Humanoid.JumpPower = v end
-        end
-    })
+    Tabs.ESP:AddToggle("TBT_ESP", {
+        Title = "👁️ " .. (Lang=="AR" and "ESP Players (Wireframe)" or "ESP Players (Wireframe)") .. " ✅ SAFE",
+        Description = Lang=="AR" and "يظهر جميع اللاعبين" or "Show all players",
+        Default = false
+    }):OnChanged(function()
+        local active = espController:toggleESP()
+        Notify("👁️", "ESP: " .. (active and "ON" or "OFF"))
+    end)
 
     -- ── MISC ────────────────────────────────────────
-    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
+    Tabs.Misc:AddSection("🧊 " .. (Lang=="AR" and "الجليد" or "Ice"))
     
-    Tabs.Misc:AddToggle("PMS_AntiAFK", {
+    Tabs.Misc:AddToggle("TBT_FixIce", {
+        Title = "🧊 " .. (Lang=="AR" and "Fix Ice Parts" or "Fix Ice Parts") .. " ✅ SAFE",
+        Description = Lang=="AR" and "يصلح مشاكل الجليد" or "Fix ice physics",
+        Default = false
+    }):OnChanged(function()
+        local active = iceFixController:toggle()
+        Notify("🧊", "Fix Ice: " .. (active and "ON" or "OFF"))
+    end)
+
+    Tabs.Misc:AddSection("🎯 " .. (Lang=="AR" and "التحرك" or "Movement"))
+    
+    Tabs.Misc:AddToggle("TBT_RandomTP", {
+        Title = "🔀 " .. (Lang=="AR" and "Random Teleport" or "Random Teleport") .. " ✅ SAFE",
+        Description = Lang=="AR" and "ينقلك عشوائياً في الماب" or "Teleport randomly in map",
+        Default = false
+    }):OnChanged(function()
+        if Options.TBT_RandomTP.Value then
+            movementController:startRandomTeleport()
+            Notify("🔀", Lang=="AR" and "Random Teleport مفعل" or "Random Teleport ON")
+        else
+            movementController:stopRandomTeleport()
+            Notify("🔀", Lang=="AR" and "Random Teleport أوقف" or "Random Teleport OFF")
+        end
+    end)
+
+    Tabs.Misc:AddToggle("TBT_AntiAFK", {
         Title = "😴 Anti AFK",
         Description = Lang=="AR" and "يمنع الطرد من اللعبة" or "Prevents AFK kick",
         Default = true
     }):OnChanged(function()
-        _G.PMS_AntiAFK = Options.PMS_AntiAFK.Value
+        _G.TBT_AntiAFK = Options.TBT_AntiAFK.Value
     end)
     
     LocalPlayer.Idled:Connect(function()
-        if _G.PMS_AntiAFK then
+        if _G.TBT_AntiAFK then
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         end
@@ -5399,7 +4551,7 @@ elseif currentMapID == _D then
 
     -- ── CONFIG ──────────────────────────────────────
     Tabs.Config:AddSection("🎨 " .. L("config_theme"))
-    local _themeMapPMS = {
+    local _themeMapTBT = {
         Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
         Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
         Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
@@ -5409,8 +4561,8 @@ elseif currentMapID == _D then
         Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
         Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
     }
-    local function applyThemePMS(v)
-        local t = _themeMapPMS[v]
+    local function applyThemeTBT(v)
+        local t = _themeMapTBT[v]
         if not t then return end
         _G.BoSqr_Theme = v
         task.spawn(function()
@@ -5434,41 +4586,48 @@ elseif currentMapID == _D then
             Notify("🎨", v .. " ✅")
         end)
     end
-    if _G.BoSqr_Theme then task.delay(1, function() pcall(applyThemePMS, _G.BoSqr_Theme) end) end
-    local PMS_ThemeDrop = Tabs.Config:AddDropdown("PMS_ThemeDrop", {
+    if _G.BoSqr_Theme then task.delay(1, function() pcall(applyThemeTBT, _G.BoSqr_Theme) end) end
+    local TBT_ThemeDrop = Tabs.Config:AddDropdown("TBT_ThemeDrop", {
         Title = L("config_theme"),
         Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
         Multi = false, Default = _G.BoSqr_Theme or "Rose"
     })
-    PMS_ThemeDrop:OnChanged(applyThemePMS)
+    TBT_ThemeDrop:OnChanged(applyThemeTBT)
 
     Tabs.Config:AddSection("🌐 " .. L("config_lang"))
-    local _ldDefaultPMS = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
-    local PMS_LangDrop = Tabs.Config:AddDropdown("PMS_LangDrop", {
+    local _ldDefaultTBT = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
+    local TBT_LangDrop = Tabs.Config:AddDropdown("TBT_LangDrop", {
         Title = L("config_lang"),
         Values = {"EN - English", "AR - العربية"},
-        Multi = false, Default = _ldDefaultPMS
+        Multi = false, Default = _ldDefaultTBT
     })
-    PMS_LangDrop:OnChanged(function(v)
+    TBT_LangDrop:OnChanged(function(v)
         if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
         else Lang = "EN" _G.BoSqr_Lang = "EN" end
         Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
     end)
 
     Tabs.Config:AddSection("⚙️")
-    local _closePMS_confirm = false
+    local _closeTBT_confirm = false
     Tabs.Config:AddButton({
         Title = "❌ " .. L("close_script"),
         Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
         Callback = function()
-            if not _closePMS_confirm then
-                _closePMS_confirm = true
+            if not _closeTBT_confirm then
+                _closeTBT_confirm = true
                 Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
-                task.delay(5, function() _closePMS_confirm = false end)
+                task.delay(5, function() _closeTBT_confirm = false end)
                 return
             end
-            PMS_AutoRewardActive = false
-            -- احذف TapBar
+            -- Cleanup
+            pcall(function() if bombTransfer.transferConnection then bombTransfer.transferConnection:Disconnect() end end)
+            pcall(function() if iceFixController.iceFixConnection then iceFixController.iceFixConnection:Disconnect() end end)
+            pcall(function() if movementController.teleportConnection then movementController.teleportConnection:Disconnect() end end)
+            pcall(function() if protectionController.protectionConnection then protectionController.protectionConnection:Disconnect() end end)
+            for _, data in pairs(espController.espConnections) do
+                pcall(function() if data.folder then data.folder:Destroy() end end)
+                pcall(function() if data.connection then data.connection:Disconnect() end end)
+            end
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
             end)
@@ -5489,11 +4648,10 @@ elseif currentMapID == _D then
     })
 
     task.wait(1)
-    Notify("⛏️ Bo.Sqr | Pickaxe",
-        (Lang=="AR" and "تم التحميل!\n⛏️ Mining | Auto Farm\n⚠️ احذر من Premium/Group!\nDiscord: Riveteam"
-         or "Loaded!\n⛏️ Mining | Auto Farm\n⚠️ Beware of Premium/Group!\nDiscord: Riveteam"), 10)
+    Notify("💣 Bo.Sqr | TimeBomb",
+        (Lang=="AR" and "✅ تم التحميل!\n💣 All features SAFE!\nDiscord: Riveteam"
+         or "✅ Loaded!\n💣 All features SAFE!\nDiscord: Riveteam"), 10)
     Window:SelectTab(1)
-    end -- end do block
 
 else
     -- ماط غير معروف
