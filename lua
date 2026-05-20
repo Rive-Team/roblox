@@ -423,7 +423,7 @@ local gameName = "Unknown"
 if currentMapID == _A then gameName = "Murder Mystery 2 🔪"
 elseif currentMapID == _B then gameName = "Kingdom World 🇸🇦"
 elseif currentMapID == _C then gameName = "TimeBomb Duels 💣"
-elseif currentMapID == _D then gameName = "Pet Mine Simulator 🪨"
+elseif currentMapID == _D then gameName = "Pickaxe Simulator ⛏️"
 end
 
 -- ── Window size بناءً على نوع الجهاز ──
@@ -4796,9 +4796,140 @@ elseif currentMapID == _C then
     -- silent load
 
 -- ══════════════════════════════════════════════════════════════════
--- 🪨 PET MINE SIMULATOR
+-- 🪨 PICKAXE SIMULATOR
 -- ══════════════════════════════════════════════════════════════════
 elseif currentMapID == _D then
+
+    -- ═══════════════════════════════════════════════════════════════
+    -- 🛡️ PICKAXE SIMULATOR ANTI-CHEAT BYPASS LAYER
+    -- ═══════════════════════════════════════════════════════════════
+    do
+        -- Helper: Gradual Value Change (تغيير تدريجي لتجنب الكشف)
+        local function gradualChange(obj, targetValue)
+            if not obj or not obj:IsA("NumberValue") then return end
+            pcall(function()
+                local current = obj.Value
+                if math.abs(targetValue - current) < 0.1 then
+                    obj.Value = targetValue
+                    return
+                end
+                
+                -- Change in 10 steps over 0.5 seconds
+                task.spawn(function()
+                    local step = (targetValue - current) / 10
+                    for i = 1, 10 do
+                        if obj and obj.Parent then
+                            obj.Value = current + (step * i)
+                            task.wait(0.05)
+                        end
+                    end
+                    if obj and obj.Parent then
+                        obj.Value = targetValue
+                    end
+                end)
+            end)
+        end
+
+        -- 1️⃣ Block Remote Detection Functions
+        pcall(function()
+            if hookfunction and getgc and islclosure and getinfo then
+                for _, v in pairs(getgc()) do
+                    if type(v) == "function" and islclosure(v) then
+                        local success, info = pcall(getinfo, v)
+                        if success and info and info.name then
+                            local name = info.name:lower()
+                            if name:find("anticheat") or name:find("detect") 
+                               or name:find("check") or name:find("validate")
+                               or name:find("ban") or name:find("kick") then
+                                pcall(function()
+                                    hookfunction(v, function() 
+                                        return true 
+                                    end)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- 2️⃣ Hook __newindex to make value changes gradual
+        pcall(function()
+            if hookmetamethod and getrawmetatable and newcclosure and setreadonly then
+                local mt = getrawmetatable(game)
+                local oldNewIndex = mt.__newindex
+                
+                setreadonly(mt, false)
+                
+                mt.__newindex = newcclosure(function(self, key, value)
+                    if key == "Value" and self:IsA("NumberValue") then
+                        local parent = self.Parent
+                        if parent and (parent.Name == "Settings" 
+                                    or parent.Name == "EggStats"
+                                    or parent.Name == "Analytics") then
+                            -- Use gradual change for important values
+                            local current = self.Value
+                            if type(value) == "number" and math.abs(value - current) > 50 then
+                                gradualChange(self, value)
+                                return
+                            end
+                        end
+                    end
+                    return oldNewIndex(self, key, value)
+                end)
+                
+                setreadonly(mt, true)
+            end
+        end)
+
+        -- 3️⃣ Disable Anti-Tamper Scripts
+        task.spawn(function()
+            task.wait(2)
+            pcall(function()
+                for _, script in pairs(game:GetDescendants()) do
+                    if (script:IsA("LocalScript") or script:IsA("ModuleScript")) and script.Enabled then
+                        local name = script.Name:lower()
+                        if name:find("anti") or name:find("detect") 
+                           or name:find("check") or name:find("secure")
+                           or name:find("cheat") then
+                            script.Disabled = true
+                            task.wait(0.1)
+                            pcall(function() script:Destroy() end)
+                        end
+                    end
+                end
+            end)
+        end)
+
+        -- 4️⃣ Filter Dangerous RemoteEvents
+        pcall(function()
+            local blockedRemotes = {"ban", "kick", "flag", "report", "detect", "anticheat"}
+            for _, remote in pairs(game:GetDescendants()) do
+                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                    local remoteName = remote.Name:lower()
+                    for _, blocked in pairs(blockedRemotes) do
+                        if remoteName:find(blocked) then
+                            if hookfunction and remote:IsA("RemoteEvent") then
+                                pcall(function()
+                                    hookfunction(remote.FireServer, function() 
+                                        return 
+                                    end)
+                                end)
+                            else
+                                pcall(function() remote:Destroy() end)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- 5️⃣ Set Bypass Flag
+        _G._PickaxeBypass = true
+        
+        task.wait(0.5)
+    end
 
     local Player = LocalPlayer
     local Character = Player.Character or Player.CharacterAdded:Wait()
@@ -4816,28 +4947,39 @@ elseif currentMapID == _D then
     local settingsFolder = nil
     local PMS_AutoRewardActive = false
 
-    -- ═══ INIT STATS FOLDER ═══
+    -- ═══ INIT STATS FOLDER (with retry) ═══
     task.spawn(function()
-        local stats = game:GetService("ReplicatedStorage"):WaitForChild("Stats", 10)
-        if stats then
-            playerStatsFolder = stats:WaitForChild(Player.Name, 10)
-            if playerStatsFolder then
-                settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
+        local tries = 0
+        repeat
+            tries = tries + 1
+            task.wait(1)
+            local stats = game:GetService("ReplicatedStorage"):FindFirstChild("Stats")
+            if stats then
+                playerStatsFolder = stats:FindFirstChild(Player.Name)
+                if playerStatsFolder then
+                    settingsFolder = playerStatsFolder:FindFirstChild("Settings")
+                    if settingsFolder then break end
+                end
             end
+        until tries > 15
+        
+        if not settingsFolder then
+            Notify("⚠️", 
+                (Lang=="AR" and "لم يتم العثور على مجلد الإعدادات!" or "Settings folder not found!"), 5)
         end
     end)
 
     -- ═══ TABS ═══
     local Tabs = {
         Home   = Window:AddTab({ Title = L("home"),   Icon = "home" }),
-        Main   = Window:AddTab({ Title = Lang=="AR" and "🪨 التعدين" or "⛏️ Mining", Icon = "tool" }),
+        Mining = Window:AddTab({ Title = Lang=="AR" and "⛏️ التعدين" or "⛏️ Mining", Icon = "tool" }),
         Boost  = Window:AddTab({ Title = Lang=="AR" and "⚡ التسريع" or "⚡ Boosts", Icon = "zap" }),
         Misc   = Window:AddTab({ Title = L("misc"),   Icon = "wrench" }),
         Config = Window:AddTab({ Title = L("config"), Icon = "sliders-horizontal" }),
     }
 
     -- ── HOME ────────────────────────────────────────
-    Tabs.Home:AddSection("🪨 Bo.Sqr | Pet Mine Simulator")
+    Tabs.Home:AddSection("⛏️ Bo.Sqr | Pickaxe Simulator")
     Tabs.Home:AddParagraph({
         Title = "👑 " .. L("dev"),
         Content = "💬 " .. L("dev_content")
@@ -4857,11 +4999,11 @@ elseif currentMapID == _D then
         Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅", L("copy_done")) end
     })
 
-    -- ── MAIN ────────────────────────────────────────
-    Tabs.Main:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
+    -- ── MINING TAB ────────────────────────────────────────
+    Tabs.Mining:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
     
     -- AutoRebirth
-    Tabs.Main:AddToggle("PMS_AutoRebirth", {
+    Tabs.Mining:AddToggle("PMS_AutoRebirth", {
         Title = "🔄 " .. (Lang=="AR" and "Auto Rebirth" or "Auto Rebirth"),
         Description = Lang=="AR" and "إعادة ميلاد تلقائية" or "Automatic rebirth",
         Default = false
@@ -4878,7 +5020,7 @@ elseif currentMapID == _D then
     end)
 
     -- AutoTrain
-    Tabs.Main:AddToggle("PMS_AutoTrain", {
+    Tabs.Mining:AddToggle("PMS_AutoTrain", {
         Title = "💪 " .. (Lang=="AR" and "Auto Train" or "Auto Train"),
         Description = Lang=="AR" and "تدريب تلقائي" or "Automatic training",
         Default = false
@@ -4895,7 +5037,7 @@ elseif currentMapID == _D then
     end)
 
     -- AutoRewardEgg
-    Tabs.Main:AddToggle("PMS_AutoReward", {
+    Tabs.Mining:AddToggle("PMS_AutoReward", {
         Title = "🎁 " .. (Lang=="AR" and "Auto Reward Egg" or "Auto Reward Egg"),
         Description = Lang=="AR" and "جمع مكافآت البيض تلقائياً" or "Auto collect egg rewards",
         Default = false
@@ -5146,7 +5288,7 @@ elseif currentMapID == _D then
     })
 
     task.wait(1)
-    Notify("🪨 Bo.Sqr | Pet Mine",
+    Notify("⛏️ Bo.Sqr | Pickaxe",
         (Lang=="AR" and "تم التحميل!\n⛏️ Mining | Auto Farm\n⚠️ احذر من Premium/Group!\nDiscord: Riveteam"
          or "Loaded!\n⛏️ Mining | Auto Farm\n⚠️ Beware of Premium/Group!\nDiscord: Riveteam"), 10)
     Window:SelectTab(1)
