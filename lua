@@ -185,11 +185,10 @@ local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pickaxe Sim: 82013336390273
 local _pid = game.PlaceId
 
 -- ═══════════════════════════════════════════════════════════════
--- ⛏️ PICKAXE SIMULATOR - SIMPLE MODE (NO HOOKS!)
--- استثناء خاص: يشتغل قبل أي فحوصات
+-- ⛏️ PICKAXE SIMULATOR - BO.SQR ROSE STYLE
+-- All features + Speed warning
 -- ═══════════════════════════════════════════════════════════════
 if _pid == _PD then
-    -- Simple clean script (no anti-cheat triggers)
     do
         local Players = game:GetService("Players")
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -207,57 +206,81 @@ if _pid == _PD then
             settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
         end)
 
+        -- Bo.Sqr Rose Style GUI
         local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "PickaxeSimUI"
+        ScreenGui.Name = "BoSqrPickaxe"
         ScreenGui.ResetOnSpawn = false
+        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
         local Frame = Instance.new("Frame")
-        Frame.Size = UDim2.new(0, 220, 0, 420)
-        Frame.Position = UDim2.new(0.5, -110, 0.4, 0)
-        Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        Frame.Size = UDim2.new(0, 280, 0, 480)
+        Frame.Position = UDim2.new(0.5, -140, 0.35, 0)
+        Frame.BackgroundColor3 = Color3.fromRGB(20, 10, 18) -- Rose Dark
+        Frame.BorderSizePixel = 0
         Frame.Active = true
         Frame.Draggable = true
         Frame.Parent = ScreenGui
 
+        local UICorner = Instance.new("UICorner", Frame)
+        UICorner.CornerRadius = UDim.new(0, 12)
+
         local UIStroke = Instance.new("UIStroke", Frame)
         UIStroke.Thickness = 2
-        UIStroke.Color = Color3.fromRGB(80, 80, 255)
+        UIStroke.Color = Color3.fromRGB(255, 80, 160) -- Rose Accent
+        UIStroke.Transparency = 0.3
 
         local Title = Instance.new("TextLabel")
-        Title.Size = UDim2.new(1, -35, 0, 30)
-        Title.Position = UDim2.fromOffset(5, 0)
+        Title.Size = UDim2.new(1, -40, 0, 35)
+        Title.Position = UDim2.fromOffset(10, 5)
         Title.BackgroundTransparency = 1
-        Title.Text = "Bo.Sqr - Pickaxe Sim"
-        Title.TextColor3 = Color3.fromRGB(200, 200, 255)
+        Title.Text = "⛏️ Bo.Sqr | Pickaxe"
+        Title.TextColor3 = Color3.fromRGB(255, 80, 160)
         Title.Font = Enum.Font.GothamBold
-        Title.TextSize = 14
+        Title.TextSize = 18
         Title.TextXAlignment = Enum.TextXAlignment.Left
         Title.Parent = Frame
 
         local Close = Instance.new("TextButton")
         Close.Size = UDim2.new(0, 30, 0, 30)
-        Close.Position = UDim2.new(1, -30, 0, 0)
-        Close.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        Close.Text = "X"
+        Close.Position = UDim2.new(1, -35, 0, 5)
+        Close.BackgroundColor3 = Color3.fromRGB(40, 20, 36)
+        Close.Text = "×"
         Close.TextColor3 = Color3.fromRGB(255, 150, 150)
         Close.Font = Enum.Font.GothamBold
-        Close.TextSize = 18
+        Close.TextSize = 20
+        Close.BorderSizePixel = 0
+        local CloseCorner = Instance.new("UICorner", Close)
+        CloseCorner.CornerRadius = UDim.new(0, 6)
         Close.Parent = Frame
 
         Close.MouseButton1Click:Connect(function()
-            Frame.Visible = false
+            ScreenGui:Destroy()
         end)
+
+        local Subtitle = Instance.new("TextLabel")
+        Subtitle.Size = UDim2.new(1, -20, 0, 20)
+        Subtitle.Position = UDim2.fromOffset(10, 40)
+        Subtitle.BackgroundTransparency = 1
+        Subtitle.Text = "Discord: Riveteam"
+        Subtitle.TextColor3 = Color3.fromRGB(180, 180, 200)
+        Subtitle.Font = Enum.Font.Gotham
+        Subtitle.TextSize = 12
+        Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+        Subtitle.Parent = Frame
 
         local function MakeToggle(name, yPos)
             local button = Instance.new("TextButton")
-            button.Size = UDim2.new(1, -20, 0, 40)
-            button.Position = UDim2.new(0, 10, 0, yPos)
-            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
             button.Font = Enum.Font.Gotham
-            button.TextSize = 16
+            button.TextSize = 15
             button.TextColor3 = Color3.fromRGB(255, 255, 255)
-            button.Text = name .. ": (loading)"
+            button.Text = name .. ": Loading..."
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
             button.Parent = Frame
 
             button.MouseButton1Click:Connect(function()
@@ -266,29 +289,34 @@ if _pid == _PD then
                 if setting and setting:IsA("BoolValue") then
                     setting.Value = not setting.Value
                     button.Text = name .. ": " .. tostring(setting.Value)
+                    button.BackgroundColor3 = setting.Value and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
                 end
             end)
 
             task.spawn(function()
-                repeat task.wait() until settingsFolder
-                local setting = settingsFolder:WaitForChild(name, 3)
+                repeat task.wait(0.5) until settingsFolder
+                local setting = settingsFolder:FindFirstChild(name, 3)
                 if setting then
                     button.Text = name .. ": " .. tostring(setting.Value)
+                    button.BackgroundColor3 = setting.Value and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
                 else
-                    button.Text = name .. ": (missing)"
+                    button.Text = name .. ": Missing"
                 end
             end)
         end
 
         local function MakeSetButton(name, yPos, targetValue)
             local button = Instance.new("TextButton")
-            button.Size = UDim2.new(1, -20, 0, 40)
-            button.Position = UDim2.new(0, 10, 0, yPos)
-            button.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
             button.Font = Enum.Font.Gotham
-            button.TextSize = 16
+            button.TextSize = 15
             button.TextColor3 = Color3.fromRGB(255, 255, 255)
-            button.Text = name .. ": Set"
+            button.Text = name .. ": Click"
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
             button.Parent = Frame
 
             button.MouseButton1Click:Connect(function()
@@ -300,34 +328,62 @@ if _pid == _PD then
                         if stat and stat:IsA("NumberValue") then
                             stat.Value = targetValue
                             button.Text = name .. ": " .. tostring(stat.Value)
+                            button.BackgroundColor3 = Color3.fromRGB(255, 80, 160)
                         end
                     end
                 end
             end)
         end
 
-        local function MakeDirectToggle(name, valueObj, yPos)
+        local function MakeDirectToggle(name, valueObj, yPos, warning)
             local button = Instance.new("TextButton")
-            button.Size = UDim2.new(1, -20, 0, 40)
-            button.Position = UDim2.new(0, 10, 0, yPos)
-            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
             button.Font = Enum.Font.Gotham
-            button.TextSize = 16
+            button.TextSize = 15
             button.TextColor3 = Color3.fromRGB(255, 255, 255)
-            button.Text = name .. ": (loading)"
+            button.Text = "⚠️ " .. name .. ": Loading..."
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
             button.Parent = Frame
 
+            local warned = false
             button.MouseButton1Click:Connect(function()
+                if not warned and warning then
+                    warned = true
+                    local warnGui = Instance.new("ScreenGui", player.PlayerGui)
+                    local warnFrame = Instance.new("Frame", warnGui)
+                    warnFrame.Size = UDim2.new(0, 300, 0, 100)
+                    warnFrame.Position = UDim2.new(0.5, -150, 0.3, 0)
+                    warnFrame.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+                    local warnCorner = Instance.new("UICorner", warnFrame)
+                    warnCorner.CornerRadius = UDim.new(0, 10)
+                    local warnText = Instance.new("TextLabel", warnFrame)
+                    warnText.Size = UDim2.new(1, -20, 1, -20)
+                    warnText.Position = UDim2.fromOffset(10, 10)
+                    warnText.BackgroundTransparency = 1
+                    warnText.Text = "⚠️ HIGH BAN RISK!\nاحتمال باند عالي!\nUse at your own risk!"
+                    warnText.TextColor3 = Color3.fromRGB(255, 200, 200)
+                    warnText.Font = Enum.Font.GothamBold
+                    warnText.TextSize = 14
+                    warnText.TextWrapped = true
+                    task.delay(4, function() warnGui:Destroy() end)
+                end
+                
                 if valueObj and valueObj:IsA("BoolValue") then
                     valueObj.Value = not valueObj.Value
-                    button.Text = name .. ": " .. tostring(valueObj.Value)
+                    button.Text = "⚠️ " .. name .. ": " .. tostring(valueObj.Value)
+                    button.BackgroundColor3 = valueObj.Value and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(60, 20, 20)
                 end
             end)
 
             task.spawn(function()
-                task.wait(0.5)
+                task.wait(1)
                 if valueObj then
-                    button.Text = name .. ": " .. tostring(valueObj.Value)
+                    button.Text = "⚠️ " .. name .. ": " .. tostring(valueObj.Value)
+                    button.BackgroundColor3 = valueObj.Value and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(60, 20, 20)
                 end
             end)
         end
@@ -335,23 +391,27 @@ if _pid == _PD then
         local autoRewardEnabled = false
         local function MakeAutoRewardToggle(yPos)
             local button = Instance.new("TextButton")
-            button.Size = UDim2.new(1, -20, 0, 40)
-            button.Position = UDim2.new(0, 10, 0, yPos)
-            button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            button.Size = UDim2.new(1, -30, 0, 45)
+            button.Position = UDim2.new(0, 15, 0, yPos)
+            button.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
             button.Font = Enum.Font.Gotham
-            button.TextSize = 16
+            button.TextSize = 15
             button.TextColor3 = Color3.fromRGB(255, 255, 255)
-            button.Text = "AutoRewardEgg: OFF"
+            button.Text = "🎁 AutoRewardEgg: OFF"
+            button.BorderSizePixel = 0
+            local corner = Instance.new("UICorner", button)
+            corner.CornerRadius = UDim.new(0, 8)
             button.Parent = Frame
 
             button.MouseButton1Click:Connect(function()
                 autoRewardEnabled = not autoRewardEnabled
-                button.Text = "AutoRewardEgg: " .. (autoRewardEnabled and "ON" or "OFF")
+                button.Text = "🎁 AutoRewardEgg: " .. (autoRewardEnabled and "ON" or "OFF")
+                button.BackgroundColor3 = autoRewardEnabled and Color3.fromRGB(255, 80, 160) or Color3.fromRGB(35, 18, 32)
             end)
 
             task.spawn(function()
                 while true do
-                    task.wait(0.25)
+                    task.wait(0.3)
                     if autoRewardEnabled then
                         pcall(function()
                             local menus = player.PlayerGui:FindFirstChild("Menus")
@@ -373,28 +433,47 @@ if _pid == _PD then
 
         local function MakeMiningSpeedSlider(yPos)
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -20, 0, 20)
-            label.Position = UDim2.new(0, 10, 0, yPos)
+            label.Size = UDim2.new(1, -30, 0, 20)
+            label.Position = UDim2.new(0, 15, 0, yPos)
             label.BackgroundTransparency = 1
-            label.Font = Enum.Font.Gotham
+            label.Font = Enum.Font.GothamBold
             label.TextSize = 14
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.Text = "MiningSpeedBoost: 1"
+            label.TextColor3 = Color3.fromRGB(255, 80, 160)
+            label.Text = "⛏️ Mining Speed: 1 ⚠️"
+            label.TextXAlignment = Enum.TextXAlignment.Left
             label.Parent = Frame
 
+            local warnLabel = Instance.new("TextLabel")
+            warnLabel.Size = UDim2.new(1, -30, 0, 15)
+            warnLabel.Position = UDim2.new(0, 15, 0, yPos + 18)
+            warnLabel.BackgroundTransparency = 1
+            warnLabel.Font = Enum.Font.Gotham
+            warnLabel.TextSize = 10
+            warnLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
+            warnLabel.Text = "⚠️ High values = ban risk!"
+            warnLabel.TextXAlignment = Enum.TextXAlignment.Left
+            warnLabel.Parent = Frame
+
             local slider = Instance.new("TextButton")
-            slider.Size = UDim2.new(1, -20, 0, 30)
-            slider.Position = UDim2.new(0, 10, 0, yPos + 20)
-            slider.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+            slider.Size = UDim2.new(1, -30, 0, 35)
+            slider.Position = UDim2.new(0, 15, 0, yPos + 35)
+            slider.BackgroundColor3 = Color3.fromRGB(35, 18, 32)
             slider.Font = Enum.Font.Gotham
             slider.Text = "Drag to Set"
-            slider.TextColor3 = Color3.fromRGB(255, 255, 255)
-            slider.TextSize = 14
+            slider.TextColor3 = Color3.fromRGB(200, 200, 220)
+            slider.TextSize = 13
+            slider.BorderSizePixel = 0
+            local sliderCorner = Instance.new("UICorner", slider)
+            sliderCorner.CornerRadius = UDim.new(0, 8)
             slider.Parent = Frame
 
             local dragging = false
             slider.MouseButton1Down:Connect(function() dragging = true end)
-            UserInputService.InputEnded:Connect(function() dragging = false end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end)
 
             RunService.RenderStepped:Connect(function()
                 if dragging then
@@ -402,7 +481,17 @@ if _pid == _PD then
                     local relativeX = mouse.X - slider.AbsolutePosition.X
                     local percent = math.clamp(relativeX / slider.AbsoluteSize.X, 0, 1)
                     local value = math.floor(percent * 9) + 1
-                    label.Text = "MiningSpeedBoost: " .. value
+                    
+                    if value >= 7 then
+                        label.Text = "⛏️ Mining Speed: " .. value .. " 🚨"
+                        label.TextColor3 = Color3.fromRGB(255, 50, 50)
+                    elseif value >= 4 then
+                        label.Text = "⛏️ Mining Speed: " .. value .. " ⚠️"
+                        label.TextColor3 = Color3.fromRGB(255, 150, 80)
+                    else
+                        label.Text = "⛏️ Mining Speed: " .. value .. " ✅"
+                        label.TextColor3 = Color3.fromRGB(80, 255, 160)
+                    end
 
                     local boost = ReplicatedStorage.Stats:FindFirstChild(player.Name)
                     if boost then
@@ -415,15 +504,44 @@ if _pid == _PD then
             end)
         end
 
-        MakeToggle("AutoRebirth", 40)
-        MakeToggle("AutoTrain", 90)
-        MakeSetButton("Egg Hatch Speed", 140, 7)
-        MakeDirectToggle("Premium", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsPremium"), 190)
-        MakeDirectToggle("In Group", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsInGroup"), 240)
-        MakeAutoRewardToggle(290)
-        MakeMiningSpeedSlider(340)
+        -- Build UI
+        MakeToggle("AutoRebirth", 70)
+        MakeToggle("AutoTrain", 125)
+        MakeSetButton("🥚 Egg Hatch (7)", 180, 7)
+        MakeDirectToggle("Premium", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsPremium"), 235, true)
+        MakeDirectToggle("In Group", ReplicatedStorage.Stats:WaitForChild(player.Name):WaitForChild("Analytics"):WaitForChild("IsInGroup"), 290, true)
+        MakeAutoRewardToggle(345)
+        MakeMiningSpeedSlider(400)
+
+        -- Welcome notification
+        task.spawn(function()
+            task.wait(0.5)
+            local notifGui = Instance.new("ScreenGui", player.PlayerGui)
+            local notifFrame = Instance.new("Frame", notifGui)
+            notifFrame.Size = UDim2.new(0, 320, 0, 90)
+            notifFrame.Position = UDim2.new(0.5, -160, 0.85, 0)
+            notifFrame.BackgroundColor3 = Color3.fromRGB(20, 10, 18)
+            notifFrame.BorderSizePixel = 0
+            local notifCorner = Instance.new("UICorner", notifFrame)
+            notifCorner.CornerRadius = UDim.new(0, 10)
+            local notifStroke = Instance.new("UIStroke", notifFrame)
+            notifStroke.Color = Color3.fromRGB(255, 80, 160)
+            notifStroke.Thickness = 2
+            
+            local notifText = Instance.new("TextLabel", notifFrame)
+            notifText.Size = UDim2.new(1, -20, 1, -20)
+            notifText.Position = UDim2.fromOffset(10, 10)
+            notifText.BackgroundTransparency = 1
+            notifText.Text = "⛏️ Bo.Sqr | Pickaxe Sim\nLoaded Successfully!\n⚠️ Keep speed low!\nDiscord: Riveteam"
+            notifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+            notifText.Font = Enum.Font.GothamBold
+            notifText.TextSize = 14
+            notifText.TextWrapped = true
+            
+            task.delay(6, function() notifGui:Destroy() end)
+        end)
     end
-    return -- Exit immediately - don't continue to rest of script
+    return -- Exit immediately
 end
 
 -- PlaceId check for other games
