@@ -181,10 +181,11 @@ end
 local _PA = _digs({1,4,2,8,2,3,2,9,1})       -- MM2: 142823291
 local _PB = _digs({9,6,7,9,6,2,5,9,5,8,0,8,9,1}) -- KW: 96796259580891
 local _PC = _digs({1,1,3,7,9,7,3,9,5,4,3})       -- TimeBomb Duels: 11379739543
+local _PD = _digs({8,2,0,1,3,3,3,6,3,9,0,2,7,3}) -- Pet Mine Sim: 82013336390273
 local _pid = game.PlaceId
 
 -- PlaceId check
-if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC then
+if _pid ~= _PA and _pid ~= _PB and _pid ~= _PC and _pid ~= _PD then
     return
 end
 
@@ -192,6 +193,7 @@ end
 local _A = _PA
 local _B = _PB
 local _C = _PC
+local _D = _PD
 
 -- ── Mobile movement cleanup (يحل مشكلة عدم التحرك على Android) ──
 -- ينظف أي BodyVelocity/BodyGyro/Anchored من سكربت سابق
@@ -421,6 +423,7 @@ local gameName = "Unknown"
 if currentMapID == _A then gameName = "Murder Mystery 2 🔪"
 elseif currentMapID == _B then gameName = "Kingdom World 🇸🇦"
 elseif currentMapID == _C then gameName = "TimeBomb Duels 💣"
+elseif currentMapID == _D then gameName = "Pet Mine Simulator 🪨"
 end
 
 -- ── Window size بناءً على نوع الجهاز ──
@@ -1039,8 +1042,12 @@ if currentMapID == _A then
     local krConn=nil
     local function startKnifeReach()
         if krConn then krConn:Disconnect() end
-        krConn=RunService.Heartbeat:Connect(function()
+        local _krAccum = 0
+        krConn=RunService.Heartbeat:Connect(function(dt)
             if not KNIFE_REACH then return end
+            _krAccum = _krAccum + dt
+            if _krAccum < 0.1 then return end -- 10fps throttle
+            _krAccum = 0
             local c=LocalPlayer.Character if not c then return end
             for _,t in pairs(c:GetChildren()) do
                 if t:IsA("Tool") and (string.find(string.lower(t.Name),"knife") or string.find(string.lower(t.Name),"blade")) then
@@ -1063,8 +1070,12 @@ if currentMapID == _A then
     local gmConn=nil
     local function startGunMod()
         if gmConn then gmConn:Disconnect() end
-        gmConn=RunService.Heartbeat:Connect(function()
+        local _gmodAcc = 0
+        gmConn=RunService.Heartbeat:Connect(function(dt)
             if not GUN_MOD then return end
+            _gmodAcc = _gmodAcc + dt
+            if _gmodAcc < 0.1 then return end
+            _gmodAcc = 0
             local c=LocalPlayer.Character if not c then return end
             for _,t in pairs(c:GetChildren()) do
                 if t:IsA("Tool") and (string.find(string.lower(t.Name),"gun") or string.find(string.lower(t.Name),"pistol") or string.find(string.lower(t.Name),"revolver")) then
@@ -1455,144 +1466,6 @@ if currentMapID == _A then
         end
     end)
 
-    -- ══════════════════════════════════════════════
-    -- 🎁 GIVE GUN — يرسل المسدس للاعب محدد لما الشريف يموت
-    -- ══════════════════════════════════════════════
-    Tabs.Combat:AddSection("🎁 " .. (Lang=="AR" and "إرسال المسدس" or "Give Gun"))
-
-    local GIVE_GUN_TARGET = nil
-    local GIVE_GUN_ENABLED = false
-
-    local function _getGiveGunNames()
-        local names = {}
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then table.insert(names, p.Name) end
-        end
-        if #names == 0 then names = {"-- لا أحد --"} end
-        return names
-    end
-
-    local GiveGunDrop = Tabs.Combat:AddDropdown("MM2_GiveGunTarget", {
-        Title = "🎯 " .. (Lang=="AR" and "اللاعب اللي يستلم المسدس" or "Gun receiver"),
-        Values = _getGiveGunNames(), Multi = false, Default = _getGiveGunNames()[1]
-    })
-    GiveGunDrop:OnChanged(function(v)
-        if v and v ~= "-- لا أحد --" then GIVE_GUN_TARGET = v end
-    end)
-
-    Tabs.Combat:AddButton({
-        Title = "🔄 " .. (Lang=="AR" and "تحديث القائمة" or "Refresh"),
-        Callback = function()
-            local n = _getGiveGunNames()
-            pcall(function() GiveGunDrop:SetValues(n) end)
-        end
-    })
-
-    -- وظيفة: نقل المسدس للاعب
-    local function _deliverGunTo(targetPlr)
-        if not targetPlr or not targetPlr.Character then return false end
-        local tHRP = targetPlr.Character:FindFirstChild("HumanoidRootPart")
-        if not tHRP then return false end
-
-        -- ابحث عن GunDrop بعمق
-        local function findGun(parent, depth)
-            depth = depth or 0
-            if depth > 4 then return nil end
-            for _, c in pairs(parent:GetChildren()) do
-                if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
-                    return c
-                end
-                if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
-                    local r = findGun(c, depth + 1)
-                    if r then return r end
-                end
-            end
-            return nil
-        end
-
-        local gun = findGun(workspace, 0)
-        if not gun then return false end
-
-        pcall(function()
-            if gun:IsA("BasePart") then
-                gun.CFrame = tHRP.CFrame
-            elseif gun:IsA("Tool") then
-                local handle = gun:FindFirstChild("Handle")
-                if handle then handle.CFrame = tHRP.CFrame end
-            elseif gun:IsA("Model") and gun.PrimaryPart then
-                gun:SetPrimaryPartCFrame(tHRP.CFrame)
-            end
-        end)
-        return true
-    end
-
-    -- ─── Give Gun: يراقب workspace لظهور GunDrop ───
-    local GIVE_GUN_LOOP = nil
-    Tabs.Combat:AddToggle("MM2_GiveGun", {
-        Title = "🎁 " .. (Lang=="AR" and "Give Gun (للشخص المحدد)" or "Give Gun (to target)"),
-        Description = Lang=="AR" and "ينقل المسدس للاعب المحدد فور سقوطه" or "Sends dropped gun to target",
-        Default = false
-    }):OnChanged(function()
-        GIVE_GUN_ENABLED = Options.MM2_GiveGun.Value
-        if GIVE_GUN_ENABLED then
-            if not GIVE_GUN_TARGET or GIVE_GUN_TARGET == "-- لا أحد --" then
-                Notify("⚠️", Lang=="AR" and "حدد اللاعب أولاً" or "Pick target first")
-                Options.MM2_GiveGun:SetValue(false)
-                return
-            end
-            Notify("🎁", (Lang=="AR" and "Give Gun مفعل → " or "Give Gun ON → ") .. GIVE_GUN_TARGET)
-
-            -- Loop يراقب الـ workspace باستمرار
-            if GIVE_GUN_LOOP then pcall(function() GIVE_GUN_LOOP:Disconnect() end) end
-            local _lastSent = nil
-            task.spawn(function()
-                while GIVE_GUN_ENABLED do
-                    task.wait(0.3)
-                    if not GIVE_GUN_ENABLED then break end
-
-                    local target = Players:FindFirstChild(GIVE_GUN_TARGET or "")
-                    if target and target.Character then
-                        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
-                        if tHRP then
-                            -- ابحث عن GunDrop في workspace
-                            local function findGun(parent, depth)
-                                depth = depth or 0
-                                if depth > 4 then return nil end
-                                for _, c in pairs(parent:GetChildren()) do
-                                    if c.Name == "GunDrop" or c.Name == "Gun_Drop" then
-                                        return c
-                                    end
-                                    if c:IsA("Tool") or c:IsA("Model") or c:IsA("Folder") then
-                                        local r = findGun(c, depth + 1)
-                                        if r then return r end
-                                    end
-                                end
-                                return nil
-                            end
-                            local gun = findGun(workspace, 0)
-                            if gun and gun ~= _lastSent then
-                                pcall(function()
-                                    if gun:IsA("BasePart") then
-                                        gun.CFrame = tHRP.CFrame
-                                    elseif gun:IsA("Tool") then
-                                        local h = gun:FindFirstChild("Handle")
-                                        if h then h.CFrame = tHRP.CFrame end
-                                    elseif gun:IsA("Model") and gun.PrimaryPart then
-                                        gun:SetPrimaryPartCFrame(tHRP.CFrame)
-                                    end
-                                end)
-                                _lastSent = gun
-                                Notify("🎁 ✅", (Lang=="AR" and "المسدس انتقل لـ " or "Gun → ") .. target.Name)
-                            end
-                        end
-                    end
-                end
-            end)
-        else
-            Notify("🎁", Lang=="AR" and "Give Gun أوقف" or "Give Gun OFF")
-        end
-    end)
-
     -- قائمة اللاعبين
         Tabs.Combat:AddButton({
         Title = "🌪️ " .. (Lang=="AR" and "فلنق الجميع" or "Fling Everyone"),
@@ -1909,8 +1782,12 @@ if currentMapID == _A then
                 Notify("🔪", L("killer_only")) return
             end
             if _throwConn then _throwConn:Disconnect() end
-            _throwConn = RunService.Heartbeat:Connect(function()
+            local _atAccum = 0
+            _throwConn = RunService.Heartbeat:Connect(function(dt)
                 if not AUTO_THROW then return end
+                _atAccum = _atAccum + dt
+                if _atAccum < 0.2 then return end -- 5fps
+                _atAccum = 0
                 local c = LocalPlayer.Character
                 if not c then return end
                 local knife = nil
@@ -2334,6 +2211,38 @@ if currentMapID == _A then
         if v and v ~= "-- لا يوجد لاعبون --" then MM2_FlingTarget = v end
     end)
 
+    -- Fling state - يضمن cleanup
+    _G.BoSqr_FlingActive = false
+    _G.BoSqr_FlingCleanup = function()
+        local myChar = LocalPlayer.Character
+        if not myChar then return end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        local myHum = myChar:FindFirstChildOfClass("Humanoid")
+        if myHRP then
+            -- شيل كل BodyMovers اللي إضفناها
+            for _, v in pairs(myHRP:GetChildren()) do
+                if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG"
+                   or v.Name == "BS_FlingAV" or v.Name == "BS_FlingBF" then
+                    pcall(function() v:Destroy() end)
+                end
+            end
+            pcall(function()
+                myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                myHRP.RotVelocity = Vector3.new(0, 0, 0)
+                myHRP.Velocity = Vector3.new(0, 0, 0)
+                myHRP.CanCollide = true
+            end)
+        end
+        if myHum then
+            pcall(function()
+                myHum.PlatformStand = false
+                myHum.Sit = false
+            end)
+        end
+        _G.BoSqr_FlingActive = false
+    end
+
     local function MM2_DoFling(targetName)
         local t = Players:FindFirstChild(targetName)
         if not t or not t.Character then
@@ -2344,42 +2253,21 @@ if currentMapID == _A then
         local myHRP  = myChar and myChar:FindFirstChild("HumanoidRootPart")
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         local tHRP   = t.Character:FindFirstChild("HumanoidRootPart")
-        local tHum   = t.Character:FindFirstChildOfClass("Humanoid")
         if not myHRP or not tHRP or not myHum then return end
 
+        -- نظف أي fling سابق
+        _G.BoSqr_FlingCleanup()
+
         local savedPos = myHRP.CFrame
+        _G.BoSqr_FlingActive = true
 
-        -- خلي شخصيتنا قابلة للحركة الحرة
+        -- روح فوق الهدف
         pcall(function()
-            myHum.PlatformStand = true
+            myHRP.CFrame = tHRP.CFrame + Vector3.new(0, 3, 0)
         end)
-
-        -- شيل كل BodyMover القديمة
-        for _, v in pairs(myHRP:GetChildren()) do
-            if v:IsA("BodyMover") or v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG"
-               or v.Name == "BS_FlingAV" then
-                v:Destroy()
-            end
-        end
-
-        -- روح فوق الهدف بشوي
-        myHRP.CFrame = tHRP.CFrame + Vector3.new(0, 3, 0)
         task.wait(0.05)
 
-        -- AssemblyAngularVelocity = طريقة 2024-2026 الشغالة
-        -- تدور شخصيتنا بسرعة جنونية وتصطدم بالهدف
-        pcall(function()
-            myHRP.CanCollide = true
-            myHRP.Massless = false
-            myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            myHRP.AssemblyAngularVelocity = Vector3.new(
-                math.random(-50000, 50000),
-                math.random(-50000, 50000),
-                math.random(-50000, 50000)
-            )
-        end)
-
-        -- BodyAngularVelocity احتياطي للـ executors اللي ما تدعم الـ Assembly
+        -- BodyAngularVelocity = تدوير شديد
         local bav = Instance.new("BodyAngularVelocity")
         bav.Name = "BS_FlingAV"
         bav.AngularVelocity = Vector3.new(math.huge, math.huge, math.huge)
@@ -2387,56 +2275,34 @@ if currentMapID == _A then
         bav.P = math.huge
         bav.Parent = myHRP
 
-        -- BodyVelocity يدفع شخصيتنا داخل الهدف
+        -- BodyVelocity = دفع
         local bv = Instance.new("BodyVelocity")
         bv.Name = "BS_FlingBV"
         bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
         bv.P = math.huge
-        bv.Velocity = Vector3.new(
-            math.random(-100, 100),
-            math.random(50, 200),
-            math.random(-100, 100)
-        )
+        bv.Velocity = Vector3.new(0, 50, 0)
         bv.Parent = myHRP
 
-        -- نظل ندفع شخصيتنا في موقع الهدف 0.8 ثانية
+        -- Spam CFrame داخل الهدف 0.5 ثانية
         task.spawn(function()
             local startTime = tick()
-            while tick() - startTime < 0.8 do
-                if tHRP and tHRP.Parent and myHRP and myHRP.Parent then
+            while tick() - startTime < 0.5 and _G.BoSqr_FlingActive do
+                if not (tHRP and tHRP.Parent and myHRP and myHRP.Parent) then break end
+                pcall(function()
                     myHRP.CFrame = tHRP.CFrame
-                    -- زيد velocity للضحية مباشرة (network owner trick)
-                    pcall(function()
-                        tHRP.AssemblyLinearVelocity = Vector3.new(
-                            math.random(-200, 200),
-                            math.random(100, 300),
-                            math.random(-200, 200)
-                        )
-                        tHRP.AssemblyAngularVelocity = Vector3.new(
-                            math.random(-1000, 1000),
-                            math.random(-1000, 1000),
-                            math.random(-1000, 1000)
-                        )
-                    end)
-                end
+                    -- ادفع الضحية مباشرة
+                    tHRP.AssemblyLinearVelocity = Vector3.new(
+                        math.random(-100, 100) * 5,
+                        math.random(50, 150) * 5,
+                        math.random(-100, 100) * 5
+                    )
+                end)
                 task.wait()
             end
-        end)
-
-        -- نظف ورجع
-        task.delay(1.2, function()
-            pcall(function()
-                for _, v in pairs(myHRP:GetChildren()) do
-                    if v.Name == "BS_FlingBV" or v.Name == "BS_FlingBG"
-                       or v.Name == "BS_FlingAV" then
-                        v:Destroy()
-                    end
-                end
-                myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                myHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                myHum.PlatformStand = false
-                myHRP.CFrame = savedPos
-            end)
+            -- cleanup بعد الـ fling
+            task.wait(0.3)
+            _G.BoSqr_FlingCleanup()
+            pcall(function() myHRP.CFrame = savedPos end)
         end)
 
         Notify("🌪️", (Lang=="AR" and "فلنق: " or "Flung: ") .. t.Name)
@@ -2662,7 +2528,11 @@ if currentMapID == _A then
     }):OnChanged(function()
         if Options.MM2_AntiSlow.Value then
             if _antiSlowConn then _antiSlowConn:Disconnect() end
-            _antiSlowConn = RunService.Heartbeat:Connect(function()
+            local _wsAcc = 0
+            _antiSlowConn = RunService.Heartbeat:Connect(function(dt)
+                _wsAcc = _wsAcc + dt
+                if _wsAcc < 0.2 then return end
+                _wsAcc = 0
                 local c = LocalPlayer.Character
                 if not c then return end
                 local h = c:FindFirstChildOfClass("Humanoid")
@@ -2993,6 +2863,11 @@ if currentMapID == _A then
             GET_GUN_ENABLED = false
             if getGunConn then getGunConn:Disconnect() end
             -- احذف TapBar
+            -- نظف Fling
+            pcall(function()
+                if _G.BoSqr_FlingCleanup then _G.BoSqr_FlingCleanup() end
+                _G.BoSqr_FlingActive = false
+            end)
             -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
@@ -3017,7 +2892,7 @@ if currentMapID == _A then
     task.wait(1)
     Notify("✅ Bo.Sqr | MM2", L("welcome_mm2"), 8)
     Window:SelectTab(1)
-    print("✅ Bo.Sqr | MM2 - تم التحميل | Discord: Riveteam")
+    -- silent load
 
 
 -- ══════════════════════════════════════════════════════════════════
@@ -3249,8 +3124,12 @@ elseif currentMapID == _B then
         local seat=GetSeat() if not seat or not seat:IsA("VehicleSeat") then Notify("⚠️","يجب أن تكون راكب سيارة أولاً!") return false end
         AutoFarmDriveActive=true AutoFarmSpeed=speed
         Notify("🤖 تجميع تلقائي","السيارة تمشي بسرعة "..speed.." وتجمع الفلوس!",4)
-        AutoFarmConn=RunService.Heartbeat:Connect(function()
-            if not AutoFarmDriveActive then return end if not Character or not Humanoid then return end
+        local _afdAccum = 0
+            AutoFarmConn=RunService.Heartbeat:Connect(function(dt)
+            if not AutoFarmDriveActive then return end
+            _afdAccum = _afdAccum + dt
+            if _afdAccum < 0.066 then return end -- 15fps
+            _afdAccum = 0 if not Character or not Humanoid then return end
             local cs=Humanoid.SeatPart if not cs or not cs:IsA("VehicleSeat") then AutoFarmDriveActive=false if AutoFarmConn then AutoFarmConn:Disconnect() AutoFarmConn=nil end return end
             cs.Throttle=1 cs.Steer=math.sin(tick()*0.5)*0.3 cs.MaxSpeed=AutoFarmSpeed cs.AssemblyLinearVelocity=cs.CFrame.LookVector*AutoFarmSpeed
             if HRP then
@@ -3434,6 +3313,64 @@ elseif currentMapID == _B then
     end})
 
     -- ── CARS ──────────────────────────────────────
+    Tabs.Cars:AddSection("🚫 حماية من المخالفات")
+    local AntiFineActive = false
+    local AntiFineConn = nil
+    local AntiFineToggle = Tabs.Cars:AddToggle("KW_AntiFine", { Title="🚫 Anti-Fine (منع المخالفات)", Description="يخفي رقم سيارتك من الشرطة", Default=false })
+    AntiFineToggle:OnChanged(function()
+        AntiFineActive = Options.KW_AntiFine.Value
+        if AntiFineActive then
+            Notify("🚫 Anti-Fine","تم تفعيل الحماية من المخالفات!",3)
+            AntiFineConn = RunService.Heartbeat:Connect(function()
+                if not AntiFineActive then return end
+                pcall(function()
+                    local car = GetCarModel()
+                    if car then
+                        -- إخفاء رقم اللوحة
+                        for _, part in pairs(car:GetDescendants()) do
+                            if part:IsA("BasePart") and (part.Name:lower():find("plate") or part.Name:lower():find("لوحة")) then
+                                part.Transparency = 1
+                            elseif part:IsA("SurfaceGui") or part:IsA("BillboardGui") then
+                                part.Enabled = false
+                            elseif part:IsA("Decal") and part.Parent.Name:lower():find("plate") then
+                                part.Transparency = 1
+                            end
+                        end
+                        -- حماية من كشف السرعة
+                        local seat = GetSeat()
+                        if seat and seat:IsA("VehicleSeat") then
+                            -- إخفاء Velocity الحقيقية من Remote Events
+                            for _, v in pairs(car:GetDescendants()) do
+                                if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                                    -- تعطيل التواصل مع السيرفر للشرطة
+                                    v.Parent = nil
+                                end
+                            end
+                        end
+                    end
+                end)
+            end)
+        else
+            if AntiFineConn then AntiFineConn:Disconnect() AntiFineConn = nil end
+            -- إرجاع اللوحات للوضع الطبيعي
+            pcall(function()
+                local car = GetCarModel()
+                if car then
+                    for _, part in pairs(car:GetDescendants()) do
+                        if part:IsA("BasePart") and (part.Name:lower():find("plate") or part.Name:lower():find("لوحة")) then
+                            part.Transparency = 0
+                        elseif part:IsA("SurfaceGui") or part:IsA("BillboardGui") then
+                            part.Enabled = true
+                        elseif part:IsA("Decal") and part.Parent.Name:lower():find("plate") then
+                            part.Transparency = 0
+                        end
+                    end
+                end
+            end)
+            Notify("🚫","تم إيقاف Anti-Fine")
+        end
+    end)
+    
     Tabs.Cars:AddSection("⚙️ التحكم بالسيارة")
     Tabs.Cars:AddSlider("KW_CarSpeed", { Title="⚡ سرعة السيارة", Min=50, Max=1000, Default=100, Rounding=0,
         Callback=function(v) KW_CarSpeedVal=v end })
@@ -3723,8 +3660,12 @@ elseif currentMapID == _B then
         SpeedHackActive=Options.KW_SpeedHack.Value
         if SpeedHackActive then
             Notify("⚡ Speed Hack","مفعل! اضغط Shift للسرعة الفائقة")
-            SpeedHackConn=RunService.Heartbeat:Connect(function()
+            local _shAccum = 0
+                SpeedHackConn=RunService.Heartbeat:Connect(function(dt)
                 if not SpeedHackActive then return end if not HRP then return end
+                _shAccum = _shAccum + dt
+                if _shAccum < 0.05 then return end -- 20fps
+                _shAccum = 0
                 local uis=UserInputService
                 if uis:IsKeyDown(Enum.KeyCode.LeftShift) then
                     local mv=Vector3.new(0,0,0) local cam=workspace.CurrentCamera
@@ -3742,8 +3683,12 @@ elseif currentMapID == _B then
         AntiFlingActive=Options.KW_AntiFling.Value
         if AntiFlingActive then
             Notify("🛡️ Anti Fling","محمي من الرمي!")
-            AntiFlingConn=RunService.Heartbeat:Connect(function()
+            local _afAccum = 0
+                AntiFlingConn=RunService.Heartbeat:Connect(function(dt)
                 if not AntiFlingActive then return end if not HRP then return end
+                _afAccum = _afAccum + dt
+                if _afAccum < 0.033 then return end -- 30fps
+                _afAccum = 0
                 if HRP.Velocity.Magnitude>500 then HRP.Velocity=Vector3.new(0,0,0) HRP.RotVelocity=Vector3.new(0,0,0) end
             end)
         else if AntiFlingConn then AntiFlingConn:Disconnect() end Notify("🛡️","Anti Fling معطل") end
@@ -3937,6 +3882,11 @@ elseif currentMapID == _B then
             if SpeedHackConn then SpeedHackConn:Disconnect() end
             if AntiFlingConn then AntiFlingConn:Disconnect() end
             -- احذف TapBar
+            -- نظف Fling
+            pcall(function()
+                if _G.BoSqr_FlingCleanup then _G.BoSqr_FlingCleanup() end
+                _G.BoSqr_FlingActive = false
+            end)
             -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
@@ -3960,7 +3910,7 @@ elseif currentMapID == _B then
 
     task.wait(1)
     Notify("🎉 Bo.Sqr | " .. (Lang=="AR" and "عالم المملكة" or "Kingdom World"), L("welcome_kw"), 10)
-    print("✅ Bo.Sqr | Kingdom World ULTIMATE - تم التحميل | Discord: Riveteam")
+    -- silent load
 
 -- ══════════════════════════════════════════════════════════════════
 -- TIMEBOMB DUELS 💣
@@ -4813,6 +4763,11 @@ elseif currentMapID == _C then
             if TBT_NoclipConn then TBT_NoclipConn:Disconnect() end
             pcall(TBT_ClearESP)
             -- احذف TapBar
+            -- نظف Fling
+            pcall(function()
+                if _G.BoSqr_FlingCleanup then _G.BoSqr_FlingCleanup() end
+                _G.BoSqr_FlingActive = false
+            end)
             -- احذف TapBar من كل الأماكن المحتملة
             pcall(function()
                 if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
@@ -4838,10 +4793,366 @@ elseif currentMapID == _C then
     Notify("💣 Bo.Sqr | TimeBomb",
         (Lang=="AR" and "تم التحميل!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"
          or "Loaded!\n💣 Bomb | ESP | Fly\nDiscord: Riveteam"), 8)
-    print("✅ Bo.Sqr | TimeBomb Duels - تم التحميل | Discord: Riveteam")
+    -- silent load
+
+-- ══════════════════════════════════════════════════════════════════
+-- 🪨 PET MINE SIMULATOR
+-- ══════════════════════════════════════════════════════════════════
+elseif currentMapID == _D then
+
+    local Player = LocalPlayer
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local HRP = Character:WaitForChild("HumanoidRootPart")
+
+    Player.CharacterAdded:Connect(function(c)
+        Character = c
+        Humanoid = c:WaitForChild("Humanoid")
+        HRP = c:WaitForChild("HumanoidRootPart")
+    end)
+
+    -- ═══ VARIABLES ═══
+    local playerStatsFolder = nil
+    local settingsFolder = nil
+    local PMS_AutoRewardActive = false
+
+    -- ═══ INIT STATS FOLDER ═══
+    task.spawn(function()
+        local stats = game:GetService("ReplicatedStorage"):WaitForChild("Stats", 10)
+        if stats then
+            playerStatsFolder = stats:WaitForChild(Player.Name, 10)
+            if playerStatsFolder then
+                settingsFolder = playerStatsFolder:WaitForChild("Settings", 10)
+            end
+        end
+    end)
+
+    -- ═══ TABS ═══
+    local Tabs = {
+        Home   = Window:AddTab({ Title = L("home"),   Icon = "home" }),
+        Main   = Window:AddTab({ Title = Lang=="AR" and "🪨 التعدين" or "⛏️ Mining", Icon = "tool" }),
+        Boost  = Window:AddTab({ Title = Lang=="AR" and "⚡ التسريع" or "⚡ Boosts", Icon = "zap" }),
+        Misc   = Window:AddTab({ Title = L("misc"),   Icon = "wrench" }),
+        Config = Window:AddTab({ Title = L("config"), Icon = "sliders-horizontal" }),
+    }
+
+    -- ── HOME ────────────────────────────────────────
+    Tabs.Home:AddSection("🪨 Bo.Sqr | Pet Mine Simulator")
+    Tabs.Home:AddParagraph({
+        Title = "👑 " .. L("dev"),
+        Content = "💬 " .. L("dev_content")
+    })
+    Tabs.Home:AddParagraph({
+        Title = "👤 " .. L("profile"),
+        Content = "👤 Name: @" .. Player.Name
+                  .. "\n🎭 Display: " .. (Player.DisplayName or Player.Name)
+                  .. "\n🆔 ID: " .. tostring(Player.UserId)
+                  .. "\n🎮 Executor: " .. _identifyexecutor()
+                  .. "\n📅 Account Age: " .. Player.AccountAge .. " days"
+                  .. "\n👥 Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
+    })
+    Tabs.Home:AddButton({
+        Title = "💬 " .. L("copy_discord"),
+        Description = "discord.gg/Riveteam",
+        Callback = function() setclipboard("discord.gg/Riveteam") Notify("✅", L("copy_done")) end
+    })
+
+    -- ── MAIN ────────────────────────────────────────
+    Tabs.Main:AddSection("⛏️ " .. (Lang=="AR" and "التعدين الأساسي" or "Basic Mining"))
+    
+    -- AutoRebirth
+    Tabs.Main:AddToggle("PMS_AutoRebirth", {
+        Title = "🔄 " .. (Lang=="AR" and "Auto Rebirth" or "Auto Rebirth"),
+        Description = Lang=="AR" and "إعادة ميلاد تلقائية" or "Automatic rebirth",
+        Default = false
+    }):OnChanged(function()
+        task.spawn(function()
+            repeat task.wait(0.5) until settingsFolder
+            local setting = settingsFolder:FindFirstChild("AutoRebirth")
+            if setting and setting:IsA("BoolValue") then
+                setting.Value = Options.PMS_AutoRebirth.Value
+                Notify("🔄", (Lang=="AR" and "Auto Rebirth: " or "Auto Rebirth: ")
+                    .. (setting.Value and "ON" or "OFF"))
+            end
+        end)
+    end)
+
+    -- AutoTrain
+    Tabs.Main:AddToggle("PMS_AutoTrain", {
+        Title = "💪 " .. (Lang=="AR" and "Auto Train" or "Auto Train"),
+        Description = Lang=="AR" and "تدريب تلقائي" or "Automatic training",
+        Default = false
+    }):OnChanged(function()
+        task.spawn(function()
+            repeat task.wait(0.5) until settingsFolder
+            local setting = settingsFolder:FindFirstChild("AutoTrain")
+            if setting and setting:IsA("BoolValue") then
+                setting.Value = Options.PMS_AutoTrain.Value
+                Notify("💪", (Lang=="AR" and "Auto Train: " or "Auto Train: ")
+                    .. (setting.Value and "ON" or "OFF"))
+            end
+        end)
+    end)
+
+    -- AutoRewardEgg
+    Tabs.Main:AddToggle("PMS_AutoReward", {
+        Title = "🎁 " .. (Lang=="AR" and "Auto Reward Egg" or "Auto Reward Egg"),
+        Description = Lang=="AR" and "جمع مكافآت البيض تلقائياً" or "Auto collect egg rewards",
+        Default = false
+    }):OnChanged(function()
+        PMS_AutoRewardActive = Options.PMS_AutoReward.Value
+        if PMS_AutoRewardActive then
+            Notify("🎁", Lang=="AR" and "Auto Reward مفعل" or "Auto Reward ON")
+            task.spawn(function()
+                while PMS_AutoRewardActive do
+                    task.wait(0.3)
+                    pcall(function()
+                        local menus = Player.PlayerGui:FindFirstChild("Menus")
+                        if menus then
+                            local rewardUI = menus:FindFirstChild("Reward")
+                            if rewardUI then
+                                local main = rewardUI.Frame.Main
+                                local available = main.Claim.Main:FindFirstChild("Available")
+                                if available and available.Visible == true then
+                                    main.Claim:Activate()
+                                end
+                            end
+                        end
+                    end)
+                end
+            end)
+        else
+            Notify("🎁", Lang=="AR" and "Auto Reward أوقف" or "Auto Reward OFF")
+        end
+    end)
+
+    -- ── BOOST ───────────────────────────────────────
+    Tabs.Boost:AddSection("⚡ " .. (Lang=="AR" and "التسريع" or "Speed Boosts"))
+
+    -- Egg Hatch Speed
+    Tabs.Boost:AddButton({
+        Title = "🥚 " .. (Lang=="AR" and "سرعة فقس البيض (7)" or "Egg Hatch Speed (7)"),
+        Description = Lang=="AR" and "يسرع فقس البيض" or "Speeds up egg hatching",
+        Callback = function()
+            task.spawn(function()
+                repeat task.wait(0.5) until playerStatsFolder
+                local eggStats = playerStatsFolder:FindFirstChild("EggStats")
+                if eggStats then
+                    local stat = eggStats:FindFirstChild("HatchSpeed")
+                    if stat and stat:IsA("NumberValue") then
+                        stat.Value = 7
+                        Notify("🥚", (Lang=="AR" and "سرعة الفقس: " or "Hatch Speed: ") .. stat.Value)
+                    end
+                end
+            end)
+        end
+    })
+
+    -- MiningSpeedBoost Slider
+    Tabs.Boost:AddSlider("PMS_MiningSpeed", {
+        Title = "⛏️ " .. (Lang=="AR" and "سرعة التعدين" or "Mining Speed Boost"),
+        Description = Lang=="AR" and "1 - 10" or "1 - 10",
+        Min = 1, Max = 10, Default = 1, Rounding = 0,
+        Callback = function(v)
+            task.spawn(function()
+                repeat task.wait(0.5) until playerStatsFolder
+                local boost = playerStatsFolder:FindFirstChild("MiningSpeedBoost")
+                if boost and boost:IsA("NumberValue") then
+                    boost.Value = v
+                    Notify("⛏️", (Lang=="AR" and "سرعة التعدين: " or "Mining Speed: ") .. v)
+                end
+            end)
+        end
+    })
+
+    Tabs.Boost:AddSection("⚠️ " .. (Lang=="AR" and "ميزات خطرة (احتمال باند!)" or "RISKY Features (Ban Risk!)"))
+
+    -- Premium (with warning)
+    local PMS_PremiumWarned = false
+    Tabs.Boost:AddToggle("PMS_Premium", {
+        Title = "💎 Premium",
+        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
+        Default = false
+    }):OnChanged(function()
+        if Options.PMS_Premium.Value and not PMS_PremiumWarned then
+            PMS_PremiumWarned = true
+            Notify("⚠️ تحذير!", 
+                (Lang=="AR" and 
+                "Premium = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
+                or 
+                "Premium = Very high ban risk!\nUse at your own risk!"), 8)
+        end
+        task.spawn(function()
+            repeat task.wait(0.5) until playerStatsFolder
+            local analytics = playerStatsFolder:FindFirstChild("Analytics")
+            if analytics then
+                local premium = analytics:FindFirstChild("IsPremium")
+                if premium and premium:IsA("BoolValue") then
+                    premium.Value = Options.PMS_Premium.Value
+                    Notify("💎", "Premium: " .. (premium.Value and "ON ⚠️" or "OFF"))
+                end
+            end
+        end)
+    end)
+
+    -- In Group (with warning)
+    local PMS_GroupWarned = false
+    Tabs.Boost:AddToggle("PMS_InGroup", {
+        Title = "👥 In Group",
+        Description = "⚠️ " .. (Lang=="AR" and "خطر! احتمال باند عالي!" or "WARNING! High ban risk!"),
+        Default = false
+    }):OnChanged(function()
+        if Options.PMS_InGroup.Value and not PMS_GroupWarned then
+            PMS_GroupWarned = true
+            Notify("⚠️ تحذير!", 
+                (Lang=="AR" and 
+                "In Group = احتمال باند عالي جداً!\nاستخدم على مسؤوليتك الخاصة!"
+                or 
+                "In Group = Very high ban risk!\nUse at your own risk!"), 8)
+        end
+        task.spawn(function()
+            repeat task.wait(0.5) until playerStatsFolder
+            local analytics = playerStatsFolder:FindFirstChild("Analytics")
+            if analytics then
+                local inGroup = analytics:FindFirstChild("IsInGroup")
+                if inGroup and inGroup:IsA("BoolValue") then
+                    inGroup.Value = Options.PMS_InGroup.Value
+                    Notify("👥", "In Group: " .. (inGroup.Value and "ON ⚠️" or "OFF"))
+                end
+            end
+        end)
+    end)
+
+    -- ── MISC ────────────────────────────────────────
+    Tabs.Misc:AddSection("🔧 " .. (Lang=="AR" and "أدوات" or "Tools"))
+    Tabs.Misc:AddToggle("PMS_AntiAFK", {
+        Title = "😴 Anti AFK",
+        Default = true
+    }):OnChanged(function()
+        _G.PMS_AntiAFK = Options.PMS_AntiAFK.Value
+    end)
+    LocalPlayer.Idled:Connect(function()
+        if _G.PMS_AntiAFK then
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end
+    end)
+
+    Tabs.Misc:AddSlider("PMS_WalkSpeed", {
+        Title = "🏃 " .. (Lang=="AR" and "سرعة المشي" or "Walk Speed"),
+        Min = 16, Max = 200, Default = 16, Rounding = 0,
+        Callback = function(v)
+            if Humanoid then Humanoid.WalkSpeed = v end
+        end
+    })
+
+    Tabs.Misc:AddSlider("PMS_JumpPower", {
+        Title = "🦘 " .. (Lang=="AR" and "قوة القفز" or "Jump Power"),
+        Min = 50, Max = 300, Default = 50, Rounding = 0,
+        Callback = function(v)
+            if Humanoid then Humanoid.JumpPower = v end
+        end
+    })
+
+    -- ── CONFIG ──────────────────────────────────────
+    Tabs.Config:AddSection("🎨 " .. L("config_theme"))
+    local _themeMapPMS = {
+        Rose={Accent=Color3.fromRGB(255,80,160),Dark=Color3.fromRGB(20,10,18)},
+        Amethyst={Accent=Color3.fromRGB(170,80,255),Dark=Color3.fromRGB(18,10,30)},
+        Aqua={Accent=Color3.fromRGB(0,200,220),Dark=Color3.fromRGB(10,20,25)},
+        Green={Accent=Color3.fromRGB(0,200,80),Dark=Color3.fromRGB(10,20,12)},
+        Orange={Accent=Color3.fromRGB(255,140,0),Dark=Color3.fromRGB(22,14,8)},
+        Red={Accent=Color3.fromRGB(255,50,50),Dark=Color3.fromRGB(22,8,8)},
+        Blue={Accent=Color3.fromRGB(50,130,255),Dark=Color3.fromRGB(8,12,24)},
+        Dark={Accent=Color3.fromRGB(120,120,140),Dark=Color3.fromRGB(15,15,20)},
+    }
+    local function applyThemePMS(v)
+        local t = _themeMapPMS[v]
+        if not t then return end
+        _G.BoSqr_Theme = v
+        task.spawn(function()
+            pcall(function()
+                local function recolor(obj)
+                    if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
+                        local c = obj.BackgroundColor3
+                        local r,g,b = c.R*255, c.G*255, c.B*255
+                        if r < 55 and g < 55 and b < 65 and obj.BackgroundTransparency < 0.9 then
+                            obj.BackgroundColor3 = t.Dark
+                        end
+                    end
+                    if obj:IsA("UIStroke") then obj.Color = t.Accent end
+                    for _, ch in pairs(obj:GetChildren()) do recolor(ch) end
+                end
+                local cg = game:GetService("CoreGui")
+                for _, ch in pairs(cg:GetChildren()) do pcall(recolor, ch) end
+                local pg = Player:FindFirstChild("PlayerGui")
+                if pg then for _, ch in pairs(pg:GetChildren()) do pcall(recolor, ch) end end
+            end)
+            Notify("🎨", v .. " ✅")
+        end)
+    end
+    if _G.BoSqr_Theme then task.delay(1, function() pcall(applyThemePMS, _G.BoSqr_Theme) end) end
+    local PMS_ThemeDrop = Tabs.Config:AddDropdown("PMS_ThemeDrop", {
+        Title = L("config_theme"),
+        Values = {"Rose","Amethyst","Aqua","Green","Orange","Red","Blue","Dark"},
+        Multi = false, Default = _G.BoSqr_Theme or "Rose"
+    })
+    PMS_ThemeDrop:OnChanged(applyThemePMS)
+
+    Tabs.Config:AddSection("🌐 " .. L("config_lang"))
+    local _ldDefaultPMS = (_G.BoSqr_Lang == "AR") and "AR - العربية" or "EN - English"
+    local PMS_LangDrop = Tabs.Config:AddDropdown("PMS_LangDrop", {
+        Title = L("config_lang"),
+        Values = {"EN - English", "AR - العربية"},
+        Multi = false, Default = _ldDefaultPMS
+    })
+    PMS_LangDrop:OnChanged(function(v)
+        if v:sub(1,2) == "AR" then Lang = "AR" _G.BoSqr_Lang = "AR"
+        else Lang = "EN" _G.BoSqr_Lang = "EN" end
+        Notify("🌐", Lang=="AR" and "✅ أعد تشغيل السكربت لتطبيق اللغة" or "✅ Restart script to apply")
+    end)
+
+    Tabs.Config:AddSection("⚙️")
+    local _closePMS_confirm = false
+    Tabs.Config:AddButton({
+        Title = "❌ " .. L("close_script"),
+        Description = Lang=="AR" and "اضغط مرتين للتأكيد" or "Press TWICE to confirm",
+        Callback = function()
+            if not _closePMS_confirm then
+                _closePMS_confirm = true
+                Notify("⚠️", Lang=="AR" and "اضغط مرة ثانية للتأكيد" or "Press again to confirm", 5)
+                task.delay(5, function() _closePMS_confirm = false end)
+                return
+            end
+            PMS_AutoRewardActive = false
+            -- احذف TapBar
+            pcall(function()
+                if _G.BoSqr_TapBar then _G.BoSqr_TapBar:Destroy() _G.BoSqr_TapBar = nil end
+            end)
+            pcall(function()
+                for _, g in pairs(game:GetService("CoreGui"):GetChildren()) do
+                    if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                end
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                if pg then
+                    for _, g in pairs(pg:GetChildren()) do
+                        if g.Name == "BoSqrRiveTap" then g:Destroy() end
+                    end
+                end
+            end)
+            _getgenv().bosqr_loaded = nil
+            pcall(function() Window:Destroy() end)
+        end
+    })
+
+    task.wait(1)
+    Notify("🪨 Bo.Sqr | Pet Mine",
+        (Lang=="AR" and "تم التحميل!\n⛏️ Mining | Auto Farm\n⚠️ احذر من Premium/Group!\nDiscord: Riveteam"
+         or "Loaded!\n⛏️ Mining | Auto Farm\n⚠️ Beware of Premium/Group!\nDiscord: Riveteam"), 10)
+    Window:SelectTab(1)
 
 else
-    -- ماب غير معروف
+    -- ماط غير معروف
 end
 
 -- ══════════════════════════════════════════════
