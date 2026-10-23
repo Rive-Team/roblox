@@ -818,6 +818,88 @@
                 body.classList.add('picker-mode');
                 syncUI();
             });
+        },
+
+        showRelaySetupModal(questName, onRetry, onSkip) {
+            const relayCode = `const http = require('http'), https = require('https');
+const server = http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Methods', '*');
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+  if (req.url === '/health') { res.writeHead(200); res.end('{"ok":true}'); return; }
+  if (req.url === '/proxy' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const {url, headers, body: b} = JSON.parse(body);
+        const u = new URL(url);
+        const r = https.request({hostname:u.hostname,path:u.pathname+u.search,method:'POST',
+          headers:{...headers,'Content-Length':Buffer.byteLength(b)}}, p => {
+          let d=''; p.on('data',c=>d+=c);
+          p.on('end',()=>{ res.writeHead(200,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:p.statusCode<400,status:p.statusCode,body:d})); });
+        });
+        r.on('error',e=>{ res.writeHead(500); res.end(JSON.stringify({ok:false,error:e.message})); });
+        r.write(b); r.end();
+      } catch(e) { res.writeHead(400); res.end(JSON.stringify({ok:false,error:e.message})); }
+    });
+    return;
+  }
+  res.writeHead(404); res.end();
+});
+server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127.0.0.1:43210'));`;
+
+            const oldModal = document.getElementById('orion-relay-modal');
+            if (oldModal) oldModal.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'orion-relay-modal';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:var(--font-primary)';
+
+            overlay.innerHTML = `
+<div style="background:#141215;border:1px solid #a12b2b;border-radius:8px;width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:20px;box-shadow:0 20px 50px #000c;color:#ece6e6;box-sizing:border-box;">
+  <div style="font-size:15px;font-weight:700;color:#f04747;margin-bottom:8px;">&#9888; تعذّر إكمال "${esc(questName)}"</div>
+  <div style="font-size:12px;color:#b27a7a;margin-bottom:14px;line-height:1.6;">
+    متصفح Discord يمنع الاتصال بـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">discordsays.com</code> بسبب <b>Content Security Policy</b>.
+    الحل: شغّل الريلاي المحلي (<b>Orion Relay</b>) على جهازك — فقط Node.js مطلوب.<br><br>
+    <b>الخطوات:</b><br>
+    1. انسخ الكود أدناه<br>
+    2. احفظه كـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">relay.js</code><br>
+    3. شغّله: <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">node relay.js</code><br>
+    4. اضغط <b>إعادة المحاولة</b>
+  </div>
+  <div style="position:relative;margin-bottom:14px;">
+    <pre id="orion-relay-code" style="background:#0f0e10;border:1px solid #291d1d;border-radius:6px;padding:12px;font-size:10.5px;font-family:Consolas,Monaco,monospace;color:#b27a7a;overflow-x:auto;white-space:pre;margin:0;">${esc(relayCode)}</pre>
+    <button id="orion-relay-copy" style="position:absolute;top:8px;right:8px;background:#b12222;border:none;border-radius:4px;color:#fff;font-size:10px;font-weight:700;padding:4px 9px;cursor:pointer;font-family:inherit;">نسخ</button>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;">
+    <button id="orion-relay-skip" style="background:#2a1a1a;border:1px solid #b12222;border-radius:4px;color:#b12222;font-size:12px;font-weight:700;padding:7px 16px;cursor:pointer;font-family:inherit;">تخطي المهمة</button>
+    <button id="orion-relay-retry" style="background:#b12222;border:none;border-radius:4px;color:#fff;font-size:12px;font-weight:700;padding:7px 16px;cursor:pointer;font-family:inherit;">إعادة المحاولة</button>
+  </div>
+</div>`;
+
+            document.body.appendChild(overlay);
+
+            document.getElementById('orion-relay-copy').addEventListener('click', function() {
+                navigator.clipboard.writeText(relayCode).then(() => {
+                    this.textContent = '✓ تم';
+                    setTimeout(() => { this.textContent = 'نسخ'; }, 2000);
+                }).catch(() => {
+                    this.textContent = '!';
+                });
+            });
+
+            document.getElementById('orion-relay-skip').addEventListener('click', () => {
+                overlay.remove();
+                if (typeof onSkip === 'function') onSkip();
+            });
+
+            document.getElementById('orion-relay-retry').addEventListener('click', () => {
+                overlay.remove();
+                if (typeof onRetry === 'function') onRetry();
+            });
         }
     };
 
@@ -1437,8 +1519,18 @@
             } catch (e) {
                 if (!RUNTIME.running) return { ok: false, reason };
                 if (e instanceof TypeError && /failed to fetch|networkerror/i.test(e.message)) {
-                    Logger.log(`[Bypass] Discord's CSP blocks the script from reaching discordsays.com. Use the Vencord plugin port for the auto-bypass, since a userscript cannot bypass CSP. Skipping "${t.name}".`, 'warn');
-                    return { ok: false, reason };
+                    Logger.log(`[Bypass] CSP blocked discordsays.com fetch for "${t.name}". Showing relay setup modal.`, 'warn');
+                    return await new Promise(resolve => {
+                        Logger.showRelaySetupModal(
+                            t.name,
+                            async () => {
+                                Tasks._relayProbe = null;
+                                Tasks._relayProbeAt = 0;
+                                resolve(await Tasks.bypassAchievement(q, t));
+                            },
+                            () => resolve({ ok: false, reason })
+                        );
+                    });
                 }
                 const code = e?.body?.code;
                 if (code === 50165) {
