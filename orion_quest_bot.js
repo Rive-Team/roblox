@@ -821,38 +821,105 @@
         },
 
         showRelaySetupModal(questName, onRetry, onSkip) {
-            const relayCode = `const http = require('http'), https = require('https');
+            const relayCode = `const http = require('http'), https = require('https'), crypto = require('crypto');
+const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', PORT = 43210, CRLF = String.fromCharCode(13, 10);
+
 const server = http.createServer((req, res) => {
-  const origin = req.headers['origin'] || 'https://discord.com';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Headers', '*');
-  res.setHeader('Access-Control-Allow-Methods', '*');
-  res.setHeader('Access-Control-Allow-Private-Network', 'true');
-  res.setHeader('Vary', 'Origin');
-  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
-  if (req.url === '/health') { res.writeHead(200); res.end('{"ok":true}'); return; }
-  if (req.url === '/proxy' && req.method === 'POST') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const {url, headers, body: b} = JSON.parse(body);
-        const u = new URL(url);
-        const r = https.request({hostname:u.hostname,path:u.pathname+u.search,method:'POST',
-          headers:{...headers,'Content-Length':Buffer.byteLength(b)}}, p => {
-          let d=''; p.on('data',c=>d+=c);
-          p.on('end',()=>{ res.writeHead(200,{'Content-Type':'application/json'});
-            res.end(JSON.stringify({ok:p.statusCode<400,status:p.statusCode,body:d})); });
-        });
-        r.on('error',e=>{ res.writeHead(500); res.end(JSON.stringify({ok:false,error:e.message})); });
-        r.write(b); r.end();
-      } catch(e) { res.writeHead(400); res.end(JSON.stringify({ok:false,error:e.message})); }
-    });
-    return;
-  }
+  if (req.url === '/health') { res.writeHead(200); res.end('{"ok":true,"transport":"ws"}'); return; }
   res.writeHead(404); res.end();
 });
-server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127.0.0.1:43210'));`;
+
+server.on('upgrade', (req, socket, head) => {
+  const key = req.headers['sec-websocket-key'];
+  if (!key) return socket.destroy();
+  socket.setNoDelay(true);
+  socket.write('HTTP/1.1 101 Switching Protocols' + CRLF + 'Upgrade: websocket' + CRLF
+    + 'Connection: Upgrade' + CRLF + 'Sec-WebSocket-Accept: '
+    + crypto.createHash('sha1').update(key + GUID).digest('base64') + CRLF + CRLF);
+  console.log('[relay] client connected (' + (req.headers.origin || '?') + ')');
+  attach(socket, head);
+});
+
+function frame(str) {
+  const p = Buffer.from(str, 'utf8');
+  let h;
+  if (p.length < 126) { h = Buffer.alloc(2); h[1] = p.length; }
+  else if (p.length < 65536) { h = Buffer.alloc(4); h[1] = 126; h.writeUInt16BE(p.length, 2); }
+  else { h = Buffer.alloc(10); h[1] = 127; h.writeUInt32BE(0, 2); h.writeUInt32BE(p.length, 6); }
+  h[0] = 0x81;
+  return Buffer.concat([h, p]);
+}
+
+function attach(socket, head) {
+  let buf = head && head.length ? Buffer.from(head) : Buffer.alloc(0), frags = [];
+  const send = o => { try { socket.write(frame(JSON.stringify(o))); } catch (e) {} };
+  const feed = chunk => {
+    if (chunk && chunk.length) buf = Buffer.concat([buf, chunk]);
+    for (;;) {
+      if (buf.length < 2) return;
+      const fin = (buf[0] & 0x80) !== 0, op = buf[0] & 0x0f, masked = (buf[1] & 0x80) !== 0;
+      let len = buf[1] & 0x7f, off = 2;
+      if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+      else if (len === 127) { if (buf.length < 10) return; len = buf.readUInt32BE(6); off = 10; }
+      let mask = null;
+      if (masked) { if (buf.length < off + 4) return; mask = buf.slice(off, off + 4); off += 4; }
+      if (buf.length < off + len) return;
+      const pay = Buffer.from(buf.slice(off, off + len));
+      if (mask) for (let i = 0; i < pay.length; i++) pay[i] ^= mask[i & 3];
+      buf = buf.slice(off + len);
+      if (op === 0x8) { try { socket.end(); } catch (e) {} return; }
+      if (op === 0x9) { const h = Buffer.alloc(2); h[0] = 0x8a; h[1] = pay.length;
+        try { socket.write(Buffer.concat([h, pay])); } catch (e) {} continue; }
+      if (op === 0xa) continue;
+      if (op === 0x0 || op === 0x1) {
+        frags.push(pay);
+        if (fin) { const msg = Buffer.concat(frags).toString('utf8'); frags = []; handle(msg, send); }
+        continue;
+      }
+      if (fin) frags = [];
+    }
+  };
+  socket.on('data', feed);
+  socket.on('error', () => {});
+  socket.on('close', () => console.log('[relay] client disconnected'));
+  feed(null);
+}
+
+function handle(raw, send) {
+  let m;
+  try { m = JSON.parse(raw); } catch (e) { return; }
+  if (m.op === 'ping') return send({ id: m.id, op: 'pong', ok: true });
+  if (m.op !== 'proxy') return send({ id: m.id, op: 'result', ok: false, status: 0, error: 'unknown op' });
+  let u;
+  try { u = new URL(m.url); } catch (e) { return send({ id: m.id, op: 'result', ok: false, status: 0, error: 'bad url' }); }
+  const host = u.hostname;
+  if (u.protocol !== 'https:' || !(host === 'discordsays.com' || host.endsWith('.discordsays.com'))) {
+    return send({ id: m.id, op: 'result', ok: false, status: 0, error: 'host not allowed' });
+  }
+  const body = typeof m.body === 'string' ? m.body : '';
+  const headers = Object.assign({}, m.headers || {});
+  headers['Content-Length'] = Buffer.byteLength(body);
+  const r = https.request({ hostname: host, port: 443, path: u.pathname + u.search,
+    method: m.method || 'POST', headers }, p => {
+    let d = '';
+    p.setEncoding('utf8');
+    p.on('data', c => d += c);
+    p.on('end', () => {
+      console.log('[relay] ' + host + u.pathname + ' -> ' + p.statusCode);
+      send({ id: m.id, op: 'result', ok: p.statusCode < 400, status: p.statusCode, body: d });
+    });
+  });
+  r.on('error', e => send({ id: m.id, op: 'result', ok: false, status: 0, error: e.message }));
+  if (body) r.write(body);
+  r.end();
+}
+
+server.on('error', e => {
+  console.error(e.code === 'EADDRINUSE'
+    ? 'Port ' + PORT + ' is already in use - stop the old relay first.' : e.message);
+  process.exit(1);
+});
+server.listen(PORT, '127.0.0.1', () => console.log('Orion Relay (WebSocket) ready on ws://127.0.0.1:' + PORT));`;
 
             const oldModal = document.getElementById('orion-relay-modal');
             if (oldModal) oldModal.remove();
@@ -867,19 +934,23 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
 <div style="background:#141215;border:1px solid #a12b2b;border-radius:8px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:20px;box-shadow:0 20px 50px #000c;color:#ece6e6;box-sizing:border-box;">
   <div style="font-size:15px;font-weight:700;color:#f04747;margin-bottom:8px;">&#9888; تعذّر إكمال "${esc(questName)}"</div>
   <div style="background:#1a1014;border:1px solid #6a2020;border-radius:6px;padding:10px;margin-bottom:12px;">
-    <div style="font-size:11.5px;color:#f0a020;font-weight:700;margin-bottom:6px;">&#9889; الريلاي مشغّل لكن لا يعمل؟ — اقتل النسخة القديمة</div>
-    <div style="font-size:11px;color:#b27a7a;margin-bottom:5px;">شغّل هذا في <b>PowerShell</b> من مجلد relay.js:</div>
+    <div style="font-size:11.5px;color:#f0a020;font-weight:700;margin-bottom:6px;">&#9889; عندك relay.js قديم؟ — لازم تستبدله</div>
+    <div style="font-size:11px;color:#b27a7a;margin-bottom:5px;">الريلاي القديم كان HTTP، والجديد <b>WebSocket</b>. اقتل القديم أولاً:</div>
     <div style="position:relative;">
       <pre id="orion-ps1-code" style="background:#0f0e10;border:1px solid #291d1d;border-radius:4px;padding:7px 46px 7px 8px;font-size:10px;font-family:Consolas,Monaco,monospace;color:#c8a060;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;">${esc(ps1Kill)}</pre>
       <button id="orion-ps1-copy" style="position:absolute;top:4px;right:4px;background:#7a3a10;border:none;border-radius:3px;color:#fff;font-size:9px;font-weight:700;padding:3px 7px;cursor:pointer;font-family:inherit;">نسخ</button>
     </div>
   </div>
   <div style="font-size:12px;color:#b27a7a;margin-bottom:14px;line-height:1.6;">
-    <b>لم تُشغّل الريلاي بعد؟ — الخطوات:</b><br>
+    Chrome يمنع <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">fetch</code> إلى 127.0.0.1 بصلاحية
+    <b>Local Network Access</b> ولا يوجد زر للموافقة داخل Discord — لذلك الريلاي الآن يعمل بـ <b>WebSocket</b>،
+    وهو مسموح في CSP الخاص بـ Discord.<br><br>
+    <b>الخطوات:</b><br>
     1. انسخ الكود أدناه<br>
-    2. احفظه كـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">relay.js</code><br>
+    2. احفظه كـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">relay.js</code> (استبدل القديم)<br>
     3. شغّله: <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">node relay.js</code><br>
-    4. اضغط <b>إعادة المحاولة</b>
+    4. تأكد أنه يطبع <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">ws://127.0.0.1:43210</code><br>
+    5. اضغط <b>إعادة المحاولة</b>
   </div>
   <div style="position:relative;margin-bottom:14px;">
     <pre id="orion-relay-code" style="background:#0f0e10;border:1px solid #291d1d;border-radius:6px;padding:12px;font-size:10.5px;font-family:Consolas,Monaco,monospace;color:#b27a7a;overflow-x:auto;white-space:pre;margin:0;">${esc(relayCode)}</pre>
@@ -1341,59 +1412,109 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
             });
         },
 
-        _relayUrl: 'http://127.0.0.1:43210',
-        _relayProbe: null,
-        _relayProbeAt: 0,
-        RELAY_PROBE_TTL: 60000,
+        // Chrome's Local Network Access permission denies fetch() to 127.0.0.1 from
+        // a public origin with no prompt to accept, so the relay speaks WebSocket:
+        // ws://127.0.0.1:* is in Discord's CSP and skips that permission check.
+        _relayUrl: 'ws://127.0.0.1:43210',
+        _ws: null,
+        _wsReady: null,
+        _wsSeq: 0,
+        _wsPending: new Map(),
 
-        _probeRelay() {
-            if (this._relayProbe && Date.now() - this._relayProbeAt < this.RELAY_PROBE_TTL) return this._relayProbe;
-            this._relayProbeAt = Date.now();
-            return this._relayProbe = (async () => {
-                try {
-                    const r = await Promise.race([
-                        fetch(`${this._relayUrl}/health`, { method: 'GET', redirect: 'error' }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), 3000))
-                    ]);
-                    if (!RUNTIME.running) return false;
-                    if (r.ok) Logger.log('[Bypass] Orion Relay detected on 127.0.0.1:43210.', 'info');
-                    return r.ok;
-                } catch (e) {
-                    if (!RUNTIME.running) return false;
-                    Logger.log('[Bypass] Relay probe failed — run the PowerShell kill command in the modal then click Retry.', 'warn');
-                    return false;
+        _relayDrop() {
+            const ws = this._ws;
+            this._ws = null;
+            this._wsReady = null;
+            for (const p of this._wsPending.values()) {
+                clearTimeout(p.timer);
+                p.reject(new Error('relay connection closed'));
+            }
+            this._wsPending.clear();
+            if (ws) { try { ws.close(); } catch (_) { } }
+        },
+
+        _relayConnect() {
+            if (this._ws && this._ws.readyState === 1) return Promise.resolve(true);
+            if (this._wsReady) return this._wsReady;
+            const p = new Promise(resolve => {
+                let settled = false, timer = null;
+                const finish = ok => {
+                    if (settled) return;
+                    settled = true;
+                    if (timer) clearTimeout(timer);
+                    resolve(ok);
+                };
+                let ws;
+                try { ws = new WebSocket(this._relayUrl); }
+                catch (e) {
+                    Logger.log(`[Relay] Could not open ${this._relayUrl}: ${e?.message ?? e}`, 'warn');
+                    finish(false);
+                    return;
                 }
-            })();
+                timer = setTimeout(() => { try { ws.close(); } catch (_) { } finish(false); }, 5000);
+                ws.onopen = () => {
+                    this._ws = ws;
+                    Logger.log('[Relay] Connected to Orion Relay on ws://127.0.0.1:43210.', 'success');
+                    finish(true);
+                };
+                ws.onerror = () => finish(false);
+                ws.onclose = () => {
+                    if (this._ws === ws) this._ws = null;
+                    this._wsReady = null;
+                    for (const pend of this._wsPending.values()) {
+                        clearTimeout(pend.timer);
+                        pend.reject(new Error('relay connection closed'));
+                    }
+                    this._wsPending.clear();
+                    finish(false);
+                };
+                ws.onmessage = ev => {
+                    let m;
+                    try { m = JSON.parse(ev.data); } catch (_) { return; }
+                    const pend = this._wsPending.get(m.id);
+                    if (!pend) return;
+                    this._wsPending.delete(m.id);
+                    clearTimeout(pend.timer);
+                    pend.resolve(m);
+                };
+            });
+            this._wsReady = p;
+            p.then(ok => { if (!ok) this._wsReady = null; });
+            return p;
+        },
+
+        _relayRequest(payload, timeoutMs = 25000) {
+            const ws = this._ws;
+            if (!ws || ws.readyState !== 1) return Promise.reject(new Error('relay not connected'));
+            const id = ++this._wsSeq;
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    this._wsPending.delete(id);
+                    reject(new Error('relay request timed out'));
+                }, timeoutMs);
+                this._wsPending.set(id, { resolve, reject, timer });
+                try { ws.send(JSON.stringify({ ...payload, id })); }
+                catch (e) {
+                    clearTimeout(timer);
+                    this._wsPending.delete(id);
+                    reject(e);
+                }
+            });
         },
 
         async _bypassPost(url, headers, jsonBody) {
-            const relayAvailable = await this._probeRelay();
+            const relayUp = await this._relayConnect();
             if (!RUNTIME.running) throw new Error('Shutdown');
-            if (relayAvailable) {
-                let r;
+            if (relayUp) {
                 try {
-                    r = await fetch(`${this._relayUrl}/proxy`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, headers, body: jsonBody }),
-                        redirect: 'error'
-                    });
+                    const r = await this._relayRequest({ op: 'proxy', method: 'POST', url, headers, body: jsonBody });
                     if (!RUNTIME.running) throw new Error('Shutdown');
+                    if (!r.ok) throw { status: r.status ?? 0, body: r.body ?? r.error ?? '' };
+                    return { ok: true, status: r.status, body: r.body };
                 } catch (e) {
                     if (!RUNTIME.running) throw e;
-                    this._relayProbe = null;
-                    Logger.log(`[Bypass] Relay stopped responding, trying other transports: ${e?.message ?? e}`, 'debug');
-                }
-                if (r) {
-                    if (!r.ok) {
-                        const body = await r.text();
-                        if (!RUNTIME.running) throw new Error('Shutdown');
-                        throw { status: r.status, body };
-                    }
-                    const result = await r.json();
-                    if (!RUNTIME.running) throw new Error('Shutdown');
-                    if (!result.ok) throw { status: result.status, body: result.body };
-                    return result;
+                    if (e?.status !== undefined) throw e;
+                    Logger.log(`[Relay] Request failed, trying other transports: ${e?.message ?? e}`, 'debug');
                 }
             }
             try {
@@ -1544,8 +1665,7 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
                         Logger.showRelaySetupModal(
                             t.name,
                             async () => {
-                                Tasks._relayProbe = null;
-                                Tasks._relayProbeAt = 0;
+                                Tasks._relayDrop();
                                 resolve(await Tasks.bypassAchievement(q, t));
                             },
                             () => resolve({ ok: false, reason })
