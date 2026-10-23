@@ -823,10 +823,12 @@
         showRelaySetupModal(questName, onRetry, onSkip) {
             const relayCode = `const http = require('http'), https = require('https');
 const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers['origin'] || 'https://discord.com';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Headers', '*');
   res.setHeader('Access-Control-Allow-Methods', '*');
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
   if (req.url === '/health') { res.writeHead(200); res.end('{"ok":true}'); return; }
   if (req.url === '/proxy' && req.method === 'POST') {
@@ -859,7 +861,7 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
             overlay.id = 'orion-relay-modal';
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:var(--font-primary)';
 
-            const ps1Kill = `Get-NetTCPConnection -LocalPort 43210 -EA 0 | % { Stop-Process -Id $_.OwningProcess -Force -EA 0 }; Start-Sleep -ms 600; node relay.js`;
+            const ps1Kill = `Get-NetTCPConnection -LocalPort 43210 -EA 0 | % { Stop-Process -Id $_.OwningProcess -Force -EA 0 }; Start-Sleep -Milliseconds 800; node relay.js`;
 
             overlay.innerHTML = `
 <div style="background:#141215;border:1px solid #a12b2b;border-radius:8px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:20px;box-shadow:0 20px 50px #000c;color:#ece6e6;box-sizing:border-box;">
