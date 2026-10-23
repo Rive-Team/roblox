@@ -859,13 +859,21 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
             overlay.id = 'orion-relay-modal';
             overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:var(--font-primary)';
 
+            const ps1Kill = `Get-NetTCPConnection -LocalPort 43210 -EA 0 | % { Stop-Process -Id $_.OwningProcess -Force -EA 0 }; Start-Sleep -ms 600; node relay.js`;
+
             overlay.innerHTML = `
-<div style="background:#141215;border:1px solid #a12b2b;border-radius:8px;width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:20px;box-shadow:0 20px 50px #000c;color:#ece6e6;box-sizing:border-box;">
+<div style="background:#141215;border:1px solid #a12b2b;border-radius:8px;width:500px;max-width:96vw;max-height:90vh;overflow-y:auto;padding:20px;box-shadow:0 20px 50px #000c;color:#ece6e6;box-sizing:border-box;">
   <div style="font-size:15px;font-weight:700;color:#f04747;margin-bottom:8px;">&#9888; تعذّر إكمال "${esc(questName)}"</div>
+  <div style="background:#1a1014;border:1px solid #6a2020;border-radius:6px;padding:10px;margin-bottom:12px;">
+    <div style="font-size:11.5px;color:#f0a020;font-weight:700;margin-bottom:6px;">&#9889; الريلاي مشغّل لكن لا يعمل؟ — اقتل النسخة القديمة</div>
+    <div style="font-size:11px;color:#b27a7a;margin-bottom:5px;">شغّل هذا في <b>PowerShell</b> من مجلد relay.js:</div>
+    <div style="position:relative;">
+      <pre id="orion-ps1-code" style="background:#0f0e10;border:1px solid #291d1d;border-radius:4px;padding:7px 46px 7px 8px;font-size:10px;font-family:Consolas,Monaco,monospace;color:#c8a060;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;">${esc(ps1Kill)}</pre>
+      <button id="orion-ps1-copy" style="position:absolute;top:4px;right:4px;background:#7a3a10;border:none;border-radius:3px;color:#fff;font-size:9px;font-weight:700;padding:3px 7px;cursor:pointer;font-family:inherit;">نسخ</button>
+    </div>
+  </div>
   <div style="font-size:12px;color:#b27a7a;margin-bottom:14px;line-height:1.6;">
-    متصفح Discord يمنع الاتصال بـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">discordsays.com</code> بسبب <b>Content Security Policy</b>.
-    الحل: شغّل الريلاي المحلي (<b>Orion Relay</b>) على جهازك — فقط Node.js مطلوب.<br><br>
-    <b>الخطوات:</b><br>
+    <b>لم تُشغّل الريلاي بعد؟ — الخطوات:</b><br>
     1. انسخ الكود أدناه<br>
     2. احفظه كـ <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">relay.js</code><br>
     3. شغّله: <code style="background:#1a1719;padding:1px 4px;border-radius:3px;">node relay.js</code><br>
@@ -882,6 +890,13 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
 </div>`;
 
             document.body.appendChild(overlay);
+
+            document.getElementById('orion-ps1-copy').addEventListener('click', function() {
+                navigator.clipboard.writeText(ps1Kill).then(() => {
+                    this.textContent = '✓ تم';
+                    setTimeout(() => { this.textContent = 'نسخ'; }, 2000);
+                }).catch(() => { this.textContent = '!'; });
+            });
 
             document.getElementById('orion-relay-copy').addEventListener('click', function() {
                 navigator.clipboard.writeText(relayCode).then(() => {
@@ -1336,12 +1351,14 @@ server.listen(43210,'127.0.0.1',()=>console.log('Orion Relay ready on http://127
                 try {
                     const r = await Promise.race([
                         fetch(`${this._relayUrl}/health`, { method: 'GET', redirect: 'error' }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), 800))
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), 3000))
                     ]);
                     if (!RUNTIME.running) return false;
                     if (r.ok) Logger.log('[Bypass] Orion Relay detected on 127.0.0.1:43210.', 'info');
                     return r.ok;
-                } catch (_) {
+                } catch (e) {
+                    if (!RUNTIME.running) return false;
+                    Logger.log('[Bypass] Relay probe failed — run the PowerShell kill command in the modal then click Retry.', 'warn');
                     return false;
                 }
             })();
